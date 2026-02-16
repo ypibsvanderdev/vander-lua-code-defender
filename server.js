@@ -3,13 +3,16 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DB_PATH = path.join(__dirname, 'vanderhub_db.json');
+
+// FIREBASE CONFIGURATION
+const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/.json';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -23,17 +26,92 @@ if (fs.existsSync(distPath)) {
 // INITIAL DATABASE
 const DEFAULT_DB = {
     users: [],
-    repos: [],
-    keys: [],
+    repos: [
+        {
+            id: "r1",
+            name: "vander-shield",
+            owner: "yahia",
+            status: "Private",
+            lang: "JavaScript",
+            stars: 142,
+            forks: 12,
+            desc: "Ultra-secure script protection engine for mobile.",
+            files: [
+                {
+                    name: "vander_tp_mobile.lua",
+                    content: "-- Vander TP & Block Mobile v3.2\n-- Optimized for Delta and Fluxus\n\nlocal Players = game:GetService(\"Players\")\nlocal LocalPlayer = Players.LocalPlayer\n\nprint(\"Vander Shield Active: Protecting \" .. LocalPlayer.Name)\n",
+                    type: "file"
+                },
+                {
+                    name: "README.md",
+                    content: "# Vander Shield\nUltra-secure script protection engine.",
+                    type: "file"
+                }
+            ],
+            issues: [
+                {
+                    id: 1,
+                    title: "Fix port conflict",
+                    status: "Open",
+                    author: "yahia",
+                    time: "2h ago"
+                }
+            ],
+            commits: [
+                {
+                    hash: "ea41a61",
+                    msg: "feat: add glassmorphism",
+                    user: "yahia",
+                    time: "2h ago"
+                }
+            ]
+        }
+    ],
+    keys: [
+        {
+            id: "VANDER-TEST-KEY",
+            used: false,
+            hwid: null
+        },
+        {
+            id: "VANDER-TRIAL-GUEST",
+            type: "trial",
+            used: false,
+            hwid: null
+        }
+    ],
     notifications: 0
 };
 
-if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(DEFAULT_DB, null, 2));
-}
+// HELPER: Get DB from Firebase
+const getDB = async () => {
+    try {
+        const res = await axios.get(FIREBASE_URL);
+        if (!res.data) {
+            // If Firebase is empty, initialize it with DEFAULT_DB
+            await saveDB(DEFAULT_DB);
+            return DEFAULT_DB;
+        }
+        // Ensure standard structure
+        const db = res.data;
+        if (!db.users) db.users = [];
+        if (!db.repos) db.repos = [];
+        if (!db.keys) db.keys = [];
+        return db;
+    } catch (e) {
+        console.error("Firebase Read Error:", e);
+        return DEFAULT_DB;
+    }
+};
 
-const getDB = () => JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-const saveDB = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+// HELPER: Save DB to Firebase
+const saveDB = async (data) => {
+    try {
+        await axios.put(FIREBASE_URL, data);
+    } catch (e) {
+        console.error("Firebase Write Error:", e);
+    }
+};
 
 // --- SECURITY TOOLS ---
 
@@ -49,21 +127,21 @@ app.post('/api/obfuscate', (req, res) => {
 });
 
 // Authentication
-app.post('/api/signup', (req, res) => {
+app.post('/api/signup', async (req, res) => {
     const { username, password } = req.body;
-    const db = getDB();
+    const db = await getDB();
     if (db.users.find(u => u.username === username)) {
         return res.status(400).json({ error: 'Username already exists' });
     }
     const newUser = { username, password, id: 'u' + Math.random().toString(36).substr(2, 9) };
     db.users.push(newUser);
-    saveDB(db);
+    await saveDB(db);
     res.json({ success: true, user: { username: newUser.username } });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    const db = getDB();
+    const db = await getDB();
     const user = db.users.find(u => u.username === username && u.password === password);
     if (user) {
         res.json({ success: true, user: { username: user.username } });
@@ -73,9 +151,9 @@ app.post('/api/login', (req, res) => {
 });
 
 // Key Verification
-app.post('/api/verify-key', (req, res) => {
+app.post('/api/verify-key', async (req, res) => {
     const { key, hwid } = req.body;
-    const db = getDB();
+    const db = await getDB();
     if (!db.keys) db.keys = [];
     const keyData = db.keys.find(k => k.id === key);
 
@@ -90,7 +168,7 @@ app.post('/api/verify-key', (req, res) => {
             keyData.expiresAt = expiry.toISOString();
         }
 
-        saveDB(db);
+        await saveDB(db);
         res.json({ success: true, expiresAt: keyData.expiresAt });
     } else {
         res.status(401).json({ error: 'Invalid or already used key' });
@@ -98,24 +176,22 @@ app.post('/api/verify-key', (req, res) => {
 });
 
 // Get user specific repos
-app.get('/api/repos', (req, res) => {
+app.get('/api/repos', async (req, res) => {
     const { username } = req.query;
-    const db = getDB();
+    const db = await getDB();
     if (username === 'yahia') {
-        // Yahia sees everything
         return res.json(db.repos);
     }
-    // Users only see repos they own
     res.json(db.repos.filter(r => r.owner === username));
 });
 
 // Delete repo
-app.delete('/api/repos/:id', (req, res) => {
-    const db = getDB();
+app.delete('/api/repos/:id', async (req, res) => {
+    const db = await getDB();
     const repoIndex = db.repos.findIndex(r => r.id === req.params.id);
     if (repoIndex !== -1) {
         db.repos.splice(repoIndex, 1);
-        saveDB(db);
+        await saveDB(db);
         res.json({ success: true });
     } else {
         res.status(404).json({ error: 'Repo not found' });
@@ -123,9 +199,9 @@ app.delete('/api/repos/:id', (req, res) => {
 });
 
 // Create new repo
-app.post('/api/repos', (req, res) => {
+app.post('/api/repos', async (req, res) => {
     const { name, desc, status, owner } = req.body;
-    const db = getDB();
+    const db = await getDB();
     const newRepo = {
         id: 'r' + Math.random().toString(36).substr(2, 9),
         name: name || 'new-repo',
@@ -140,14 +216,14 @@ app.post('/api/repos', (req, res) => {
         commits: [{ hash: Math.random().toString(16).substr(2, 7), msg: 'Initial commit', user: owner || 'System', time: 'Just now' }]
     };
     db.repos.push(newRepo);
-    saveDB(db);
+    await saveDB(db);
     res.json(newRepo);
 });
 
 // Add Issue
-app.post('/api/repos/:id/issues', (req, res) => {
+app.post('/api/repos/:id/issues', async (req, res) => {
     const { author } = req.body;
-    const db = getDB();
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (repo) {
         const newIssue = {
@@ -158,7 +234,7 @@ app.post('/api/repos/:id/issues', (req, res) => {
             time: 'Just now'
         };
         repo.issues.push(newIssue);
-        saveDB(db);
+        await saveDB(db);
         res.json(newIssue);
     } else {
         res.status(404).json({ error: 'Repo not found' });
@@ -166,26 +242,25 @@ app.post('/api/repos/:id/issues', (req, res) => {
 });
 
 // Star Repo
-app.post('/api/repos/:id/star', (req, res) => {
-    const db = getDB();
+app.post('/api/repos/:id/star', async (req, res) => {
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (repo) {
         repo.stars += 1;
-        saveDB(db);
+        await saveDB(db);
         res.json(repo);
     }
 });
 
 // Add File to Repo
-app.post('/api/repos/:id/files', (req, res) => {
-    const db = getDB();
+app.post('/api/repos/:id/files', async (req, res) => {
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
 
     const { name, content } = req.body;
     if (!name) return res.status(400).json({ error: 'File name required' });
 
-    // Check for duplicate
     if (repo.files.find(f => f.name === name)) {
         return res.status(409).json({ error: 'File already exists' });
     }
@@ -193,12 +268,10 @@ app.post('/api/repos/:id/files', (req, res) => {
     const newFile = { name, content: content || '', type: 'file' };
     repo.files.push(newFile);
 
-    // Auto-detect language from extension
     const ext = name.split('.').pop().toLowerCase();
     const langMap = { lua: 'Lua', js: 'JavaScript', jsx: 'React', py: 'Python', ts: 'TypeScript', css: 'CSS', html: 'HTML', json: 'JSON', md: 'Markdown' };
     if (langMap[ext] && repo.lang === 'Plain Text') repo.lang = langMap[ext];
 
-    // Add a commit entry
     repo.commits.unshift({
         hash: Math.random().toString(16).substr(2, 7),
         msg: `Add ${name}`,
@@ -206,13 +279,13 @@ app.post('/api/repos/:id/files', (req, res) => {
         time: 'Just now'
     });
 
-    saveDB(db);
+    await saveDB(db);
     res.json(newFile);
 });
 
 // Get single file content
-app.get('/api/repos/:id/files/:filename', (req, res) => {
-    const db = getDB();
+app.get('/api/repos/:id/files/:filename', async (req, res) => {
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
 
@@ -223,8 +296,8 @@ app.get('/api/repos/:id/files/:filename', (req, res) => {
 });
 
 // Edit/Update file content
-app.put('/api/repos/:id/files/:filename', (req, res) => {
-    const db = getDB();
+app.put('/api/repos/:id/files/:filename', async (req, res) => {
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
 
@@ -240,13 +313,13 @@ app.put('/api/repos/:id/files/:filename', (req, res) => {
         time: 'Just now'
     });
 
-    saveDB(db);
+    await saveDB(db);
     res.json(file);
 });
 
 // Delete file
-app.delete('/api/repos/:id/files/:filename', (req, res) => {
-    const db = getDB();
+app.delete('/api/repos/:id/files/:filename', async (req, res) => {
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.id);
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
 
@@ -259,7 +332,7 @@ app.delete('/api/repos/:id/files/:filename', (req, res) => {
         time: 'Just now'
     });
 
-    saveDB(db);
+    await saveDB(db);
     res.json({ success: true });
 });
 
@@ -285,7 +358,6 @@ function obfuscateLua(source) {
     const vRun = randVar();
     const vXor = randVar();
 
-    // Chunking function to prevent Delta crashes on large tables
     const chunkTable = (data, varName) => {
         const chunkSize = 500;
         let output = `local ${varName} = {}\n`;
@@ -296,7 +368,6 @@ function obfuscateLua(source) {
         return output;
     };
 
-    // Layer 1: Base XOR
     let lua = `-- VanderHub Core\n`;
     lua += `local ${vKey}=${key}\n`;
     lua += chunkTable(encrypted, vTable);
@@ -306,7 +377,6 @@ function obfuscateLua(source) {
     lua += `local ${vRun}=loadstring or load\n`;
     lua += `${vRun}(table.concat(${vResult}))()\n`;
 
-    // Layer 2: Final Shell (Shift Cipher for maximum mobile speed)
     const layer2Key = Math.floor(Math.random() * 100) + 10;
     const layer2Encrypted = [];
     for (let i = 0; i < lua.length; i++) {
@@ -330,30 +400,23 @@ function obfuscateLua(source) {
     return finalOutput;
 }
 
-// RAW file content (for Roblox executors to fetch scripts!)
-// DOUBLE PROTECTION: key required + browsers always blocked
 const RAW_KEY = 'vander2026';
 
-app.get('/raw/:repoId/:filename', (req, res) => {
+app.get('/raw/:repoId/:filename', async (req, res) => {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-
-    // Always block browsers (even with key)
-    // EXCEPTION: Allow known executors and all mobile devices
     const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork'];
     const isWhitelisted = whitelist.some(k => ua.includes(k));
     const isCommonBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('firefox') || ua.includes('edg') || ua.includes('opera') || ua.includes('webkit');
 
-    // Only block if it's a common desktop browser AND not whitelisted
     if (isCommonBrowser && !isWhitelisted) {
         return res.status(403).send('<html><body style="background:#0d1117;color:#f85149;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center"><h1>🛡️ VANDERHUB: ACCESS DENIED</h1><p style="color:#8b949e">Raw source code is protected. Browser access is forbidden.</p></div></body></html>');
     }
 
-    // Check for secret key
     if (req.query.key !== RAW_KEY) {
         return res.status(403).send('-- ACCESS DENIED: Invalid key');
     }
 
-    const db = getDB();
+    const db = await getDB();
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 
@@ -362,7 +425,6 @@ app.get('/raw/:repoId/:filename', (req, res) => {
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
-    // Auto-obfuscate Lua files, serve others as-is
     const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
     if (isLua && file.content.length > 0) {
         res.send(obfuscateLua(file.content));
@@ -371,7 +433,6 @@ app.get('/raw/:repoId/:filename', (req, res) => {
     }
 });
 
-// Catch-all: serve frontend for any non-API route (for production SPA)
 if (fs.existsSync(distPath)) {
     app.get('*', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
