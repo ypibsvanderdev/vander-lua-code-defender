@@ -281,7 +281,7 @@ function App() {
                     </button>
 
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Don't have a key? <a href="https://ypibsvanderdev.github.io/keys-for-website/" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Get access here</a>
+                        Don't have a key? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Get access here</a>
                     </p>
                 </motion.div>
             </div>
