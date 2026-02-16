@@ -1,0 +1,5 @@
+node_modules
+vanderhub_db.json
+dist
+.env
+*.log
