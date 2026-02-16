@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: vander-lua-code-defender
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
