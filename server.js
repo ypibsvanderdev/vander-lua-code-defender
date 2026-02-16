@@ -70,17 +70,32 @@ app.post('/api/verify-key', (req, res) => {
 
     if (keyData && !keyData.used) {
         keyData.used = true;
-        keyData.hwid = hwid; // Bind key to HWID
+        keyData.hwid = hwid;
+
+        // Handle Trial Keys
+        if (keyData.type === 'trial') {
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + 30);
+            keyData.expiresAt = expiry.toISOString();
+        }
+
         saveDB(db);
-        res.json({ success: true });
+        res.json({ success: true, expiresAt: keyData.expiresAt });
     } else {
         res.status(401).json({ error: 'Invalid or already used key' });
     }
 });
 
-// Get all repos
+// Get user specific repos
 app.get('/api/repos', (req, res) => {
-    res.json(getDB().repos);
+    const { username } = req.query;
+    const db = getDB();
+    if (username === 'yahia') {
+        // Yahia sees everything
+        return res.json(db.repos);
+    }
+    // Users only see repos they own
+    res.json(db.repos.filter(r => r.owner === username));
 });
 
 // Delete repo

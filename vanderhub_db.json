@@ -11,6 +11,12 @@
       "id": "VANDER-TEST-KEY",
       "used": false,
       "hwid": null
+    },
+    {
+      "id": "VANDER-TRIAL-GUEST",
+      "type": "trial",
+      "used": false,
+      "hwid": null
     }
   ],
   "repos": [

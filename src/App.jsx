@@ -57,8 +57,9 @@ function App() {
 
     // --- API CALLS ---
     const fetchRepos = async () => {
+        if (!user) return;
         try {
-            const r = await fetch(`${API}/repos`);
+            const r = await fetch(`${API}/repos?username=${user.username}`);
             const d = await r.json();
             setRepos(d);
         } catch (e) { console.error(e); }
@@ -276,8 +277,13 @@ function App() {
 
                     {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
 
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '20px' }} onClick={handleVerifyKey}>
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '12px' }} onClick={handleVerifyKey}>
                         Verify Access
+                    </button>
+
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', marginBottom: '20px' }}
+                        onClick={() => { setAccessKey('VANDER-TRIAL-GUEST'); handleVerifyKey(); }}>
+                        Claim 30-Day Free Trial
                     </button>
 
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
