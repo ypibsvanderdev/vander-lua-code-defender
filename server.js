@@ -24,6 +24,7 @@ if (fs.existsSync(distPath)) {
 const DEFAULT_DB = {
     users: [],
     repos: [],
+    keys: [],
     notifications: 0
 };
 
@@ -57,6 +58,23 @@ app.post('/api/login', (req, res) => {
         res.json({ success: true, user: { username: user.username } });
     } else {
         res.status(401).json({ error: 'Invalid credentials' });
+    }
+});
+
+// Key Verification
+app.post('/api/verify-key', (req, res) => {
+    const { key, hwid } = req.body;
+    const db = getDB();
+    if (!db.keys) db.keys = [];
+    const keyData = db.keys.find(k => k.id === key);
+
+    if (keyData && !keyData.used) {
+        keyData.used = true;
+        keyData.hwid = hwid; // Bind key to HWID
+        saveDB(db);
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ error: 'Invalid or already used key' });
     }
 });
 

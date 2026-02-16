@@ -6,6 +6,13 @@
       "id": "u1"
     }
   ],
+  "keys": [
+    {
+      "id": "VANDER-TEST-KEY",
+      "used": false,
+      "hwid": null
+    }
+  ],
   "repos": [
     {
       "id": "r1",

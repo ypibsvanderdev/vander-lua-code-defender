@@ -21,6 +21,8 @@ function App() {
 
     // Authentication State
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('vander_hub_user')) || null);
+    const [isKeyVerified, setIsKeyVerified] = useState(localStorage.getItem('vander_key_verified') === 'true');
+    const [accessKey, setAccessKey] = useState('');
     const [loginUsername, setLoginUsername] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
     const [authError, setAuthError] = useState('');
@@ -107,6 +109,23 @@ function App() {
         setUser(null);
         localStorage.removeItem('vander_hub_user');
         setView('login');
+    };
+
+    const handleVerifyKey = async () => {
+        if (!accessKey.trim()) return setAuthError('Please enter a key');
+        try {
+            const r = await fetch(`${API}/verify-key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: accessKey.trim(), hwid: navigator.userAgent }) // Simple HWID simulation
+            });
+            const d = await r.json();
+            if (d.success) {
+                setIsKeyVerified(true);
+                localStorage.setItem('vander_key_verified', 'true');
+                setAuthError('');
+            } else { setAuthError(d.error); }
+        } catch (e) { setAuthError('Connection failed'); }
     };
 
     const createRepo = async () => {
@@ -227,6 +246,48 @@ function App() {
     }, []);
 
     // ==================== RENDER ====================
+    if (!isKeyVerified) {
+        return (
+            <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)', filter: 'blur(100px)', opacity: 0.3 }}></div>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="repo-card"
+                    style={{ width: '420px', padding: '48px', textAlign: 'center', position: 'relative', zIndex: 10, cursor: 'default' }}
+                >
+                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(0, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px' }}>
+                        <Lock size={36} color="var(--accent-color)" />
+                    </div>
+                    <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.5px' }}>Access Protocol</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '36px' }}>Enter your security key to unlock the ecosystem.</p>
+
+                    <div className="input-group" style={{ textAlign: 'left', marginBottom: '24px' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>SECURITY KEY</label>
+                        <input
+                            type="text"
+                            className="search-box"
+                            style={{ width: '100%', padding: '12px' }}
+                            placeholder="VANDER-XXXX-XXXX"
+                            value={accessKey}
+                            onChange={(e) => setAccessKey(e.target.value)}
+                        />
+                    </div>
+
+                    {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
+
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '20px' }} onClick={handleVerifyKey}>
+                        Verify Access
+                    </button>
+
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        Don't have a key? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Get access here</a>
+                    </p>
+                </motion.div>
+            </div>
+        );
+    }
+
     if (!user) {
         const isLogin = view === 'login';
         return (
