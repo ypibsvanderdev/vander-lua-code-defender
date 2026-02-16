@@ -52,34 +52,57 @@ app.post('/api/deobfuscate', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'No code provided' });
 
-    // High-Tier Deobfuscator logic
-    // Removes comments, reconstructs strings from char tables, and cleans variable names
-    let clean = code;
+    try {
+        let currentCode = code;
 
-    // Pattern: reconstruct strings from character tables
-    const tablePattern = /local\s+(\w+)\s*=\s*\{([\d,\s]+)\}/g;
-    let match;
-    while ((match = tablePattern.exec(clean)) !== null) {
-        const varName = match[1];
-        const chars = match[2].split(',').map(c => String.fromCharCode(parseInt(c.trim())));
-        const str = chars.join('');
-        // Attempt to replace usage of this table with the actual string
-        // Note: This is an approximation for "high-tier"
-        const usagePattern = new RegExp(`table\\.concat\\(${varName}\\)`, 'g');
-        clean = clean.replace(usagePattern, `"${str}"`);
+        // Function to extract layer data (key and bytes)
+        const extractLayerData = (src) => {
+            // Find key: local _var=50
+            const keyMatch = src.match(/local\s+\w+\s*=\s*(\d+)/);
+            if (!keyMatch) return null;
+            const key = parseInt(keyMatch[1]);
+
+            // Find all chunk data: for _, v in pairs({1,2,3}) do table.insert(var, v) end
+            const bytes = [];
+            const chunkRegex = /pairs\(\{([\d,\s]+)\}\)/g;
+            let match;
+            while ((match = chunkRegex.exec(src)) !== null) {
+                const vals = match[1].split(',').map(v => parseInt(v.trim()));
+                bytes.push(...vals);
+            }
+
+            if (bytes.length === 0) return null;
+            return { key, bytes };
+        };
+
+        // LAYER 2: SHIFT CIPHER
+        const layer2 = extractLayerData(currentCode);
+        if (layer2 && currentCode.includes('Shield v2.6')) {
+            let layer1Code = "";
+            for (let b of layer2.bytes) {
+                layer1Code += String.fromCharCode((b - layer2.key + 256) % 256);
+            }
+            currentCode = layer1Code;
+        }
+
+        // LAYER 1: XOR
+        const layer1 = extractLayerData(currentCode);
+        if (layer1 && currentCode.includes('VanderHub Core')) {
+            let originalCode = "";
+            for (let b of layer1.bytes) {
+                originalCode += String.fromCharCode(b ^ layer1.key);
+            }
+            currentCode = originalCode;
+        }
+
+        // Final cleanup
+        currentCode = currentCode.replace(/-- VanderHub Shield v\d+\.\d+ \| .+\n/g, '');
+        currentCode = currentCode.replace(/-- VanderHub Core\n/g, '');
+
+        res.json({ result: currentCode });
+    } catch (e) {
+        res.status(500).json({ error: 'Deobfuscation failed: ' + e.message });
     }
-
-    // Pattern: Clean Shift Ciphers
-    const shiftPattern = /string\.char\(\(([\w\[\]]+)\s*-\s*(\d+)\)\s*%\s*256\)/g;
-    clean = clean.replace(shiftPattern, (full, byte, shift) => {
-        // This is a placeholder for real byte reconstruction
-        return `DECODED_CHAR`;
-    });
-
-    // Strip VanderHub headers
-    clean = clean.replace(/-- VanderHub Shield v\d+\.\d+ \| .+\n/g, '');
-
-    res.json({ result: clean });
 });
 
 // Authentication
