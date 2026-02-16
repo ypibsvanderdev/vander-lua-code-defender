@@ -25,7 +25,7 @@
       "name": "vander-shield",
       "owner": "yahia",
       "status": "Private",
-      "lang": "Lua",
+      "lang": "JavaScript",
       "stars": 142,
       "forks": 12,
       "desc": "Ultra-secure script protection engine for mobile.",
@@ -58,6 +58,82 @@
           "time": "2h ago"
         }
       ]
+    },
+    {
+      "id": "r2",
+      "name": "admin-panle",
+      "owner": "yahia",
+      "status": "Private",
+      "lang": "Plain Text",
+      "stars": 0,
+      "forks": 0,
+      "desc": "Repository created with VanderHub",
+      "files": [
+        {
+          "name": "admin_panel.lua",
+          "content": "-- Admin Panel Source\nprint(\"Admin Panel Loaded\")",
+          "type": "file"
+        }
+      ],
+      "issues": [],
+      "commits": []
+    },
+    {
+      "id": "r3",
+      "name": "mobile-dules",
+      "owner": "yahia",
+      "status": "Private",
+      "lang": "Plain Text",
+      "stars": 0,
+      "forks": 0,
+      "desc": "Repository created with VanderHub",
+      "files": [
+        {
+          "name": "mobile_duels.lua",
+          "content": "-- Mobile Duels Script",
+          "type": "file"
+        }
+      ],
+      "issues": [],
+      "commits": []
+    },
+    {
+      "id": "r4",
+      "name": "pc-dules",
+      "owner": "yahia",
+      "status": "Private",
+      "lang": "Plain Text",
+      "stars": 0,
+      "forks": 0,
+      "desc": "Repository created with VanderHub",
+      "files": [
+        {
+          "name": "pc_duels.lua",
+          "content": "-- PC Duels Script",
+          "type": "file"
+        }
+      ],
+      "issues": [],
+      "commits": []
+    },
+    {
+      "id": "r5",
+      "name": "tp-and-block",
+      "owner": "yahia",
+      "status": "Private",
+      "lang": "Plain Text",
+      "stars": 0,
+      "forks": 0,
+      "desc": "Repository created with VanderHub",
+      "files": [
+        {
+          "name": "tp_block.lua",
+          "content": "-- TP and Block Script",
+          "type": "file"
+        }
+      ],
+      "issues": [],
+      "commits": []
     }
   ],
   "notifications": 2
