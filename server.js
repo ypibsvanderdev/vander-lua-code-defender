@@ -404,16 +404,22 @@ const RAW_KEY = 'vander2026';
 
 app.get('/raw/:repoId/:filename', async (req, res) => {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork'];
-    const isWhitelisted = whitelist.some(k => ua.includes(k));
-    const isCommonBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('firefox') || ua.includes('edg') || ua.includes('opera') || ua.includes('webkit');
 
-    if (isCommonBrowser && !isWhitelisted) {
-        return res.status(403).send('<html><body style="background:#0d1117;color:#f85149;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center"><h1>🛡️ VANDERHUB: ACCESS DENIED</h1><p style="color:#8b949e">Raw source code is protected. Browser access is forbidden.</p></div></body></html>');
+    // Hardened Security: Block Discord bots and scraper libraries
+    const blacklist = ['discordbot', 'python-requests', 'axios', 'node-fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork'];
+
+    const isBlacklisted = blacklist.some(k => ua.includes(k));
+    const isWhitelisted = whitelist.some(k => ua.includes(k));
+
+    // Only allow if it's whitelisted AND not blacklisted
+    if (isBlacklisted || !isWhitelisted) {
+        return res.status(403).send('<html><body style="background:#0d1117;color:#f85149;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center"><h1>🛡️ VANDERHUB: ACCESS DENIED</h1><p style="color:#8b949e">Vander Shield Protocol: Device signature not recognized. Raw access restricted to verified executors.</p></div></body></html>');
     }
 
+    // Check for secret key
     if (req.query.key !== RAW_KEY) {
-        return res.status(403).send('-- ACCESS DENIED: Invalid key');
+        return res.status(403).send('-- ACCESS DENIED: Invalid security handshake');
     }
 
     const db = await getDB();
