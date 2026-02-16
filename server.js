@@ -212,9 +212,27 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     }
 
     // Check if HWID is registered to any key or user
-    const isRegistered = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
-    // EXCEPTION: Let's also check a global whitelist for your own keys
-    if (!isRegistered && hwid !== 'yahia-master-pc' && hwid !== 'vander-dev-666') {
+    const isProductUser = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
+
+    // BACKUP: Also check the Zenith Registry (for Zenith PC/Mobile users)
+    let isZenithUser = false;
+    try {
+        if (fs.existsSync('zenith_registry.json')) {
+            const registry = JSON.parse(fs.readFileSync('zenith_registry.json', 'utf-8'));
+            for (const scriptName in registry.Scripts) {
+                const whitelist = registry.Scripts[scriptName].Whitelist || {};
+                // We check if the HWID itself is whitelisted or if the user owns it
+                if (whitelist[hwid] || Object.values(whitelist).includes(hwid)) {
+                    isZenithUser = true;
+                    break;
+                }
+            }
+        }
+    } catch (e) { console.error("Registry check error:", e); }
+
+    const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
+
+    if (!isProductUser && !isZenithUser && !isMaster) {
         return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
     }
 
