@@ -637,26 +637,67 @@ function App() {
                             </div>
 
                             {/* Deobfuscator Column */}
-                            <div className="repo-card" style={{ padding: '24px', cursor: 'default' }}>
+                            <div className="repo-card" style={{ padding: '24px', cursor: 'default', position: 'relative' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                                     <Layers size={18} color="#f78166" />
                                     <h3 style={{ margin: 0 }}>High-Tier Deobfuscator</h3>
                                 </div>
-                                <textarea
-                                    className="search-box"
-                                    style={{ width: '100%', height: '300px', fontFamily: 'monospace', fontSize: '12px', padding: '15px', resize: 'none', background: '#0d1117' }}
-                                    placeholder="Paste obfuscated code to analyze..."
-                                    id="deobf-input"
-                                ></textarea>
-                                <button className="btn" style={{ width: '100%', marginTop: '20px', padding: '12px', borderColor: '#f78166' }} onClick={async () => {
-                                    const code = document.getElementById('deobf-input').value;
+                                <div style={{ position: 'relative' }}>
+                                    <textarea
+                                        className="search-box"
+                                        style={{ width: '100%', height: '300px', fontFamily: 'monospace', fontSize: '12px', padding: '15px', resize: 'none', background: '#0d1117' }}
+                                        placeholder="Paste obfuscated code to analyze..."
+                                        id="deobf-input"
+                                    ></textarea>
+
+                                    {/* Cracking Overlay */}
+                                    <div id="crack-overlay" style={{ display: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 17, 23, 0.95)', backdropFilter: 'blur(5px)', zIndex: 10, borderRadius: '6px', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                                        <div style={{ width: '100%', maxWidth: '300px' }}>
+                                            <div id="crack-status" style={{ fontSize: '12px', color: '#f78166', marginBottom: '10px', fontWeight: 600, fontFamily: 'monospace' }}>INITIALIZING NEURAL DECODER...</div>
+                                            <div style={{ height: '4px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                                                <div id="crack-progress" style={{ width: '0%', height: '100%', background: '#f78166', boxShadow: '0 0 10px #f78166', transition: 'width 0.3s' }}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button id="deobf-btn" className="btn" style={{ width: '100%', marginTop: '20px', padding: '12px', borderColor: '#f78166' }} onClick={async () => {
+                                    const input = document.getElementById('deobf-input');
+                                    const overlay = document.getElementById('crack-overlay');
+                                    const progress = document.getElementById('crack-progress');
+                                    const status = document.getElementById('crack-status');
+                                    const btn = document.getElementById('deobf-btn');
+
+                                    if (!input.value.trim()) return;
+
+                                    btn.disabled = true;
+                                    overlay.style.display = 'flex';
+
+                                    const steps = [
+                                        { p: 10, s: "ANALYZING MAGIC CONSTANTS..." },
+                                        { p: 25, s: "RECONSTRUCTING STRING TABLES..." },
+                                        { p: 40, s: "BYPASSING VANDER ANTI-VM..." },
+                                        { p: 60, s: "BRUTE-FORCING SHIFT CIPHERS..." },
+                                        { p: 80, s: "CLEANING VARIABLE GLOBALS..." },
+                                        { p: 100, s: "FINALIZING HIGH-TIER OUTPUT..." }
+                                    ];
+
+                                    for (let i = 0; i < steps.length; i++) {
+                                        status.innerText = steps[i].s;
+                                        progress.style.width = steps[i].p + '%';
+                                        await new Promise(r => setTimeout(r, 1600)); // Total ~10 seconds
+                                    }
+
                                     const res = await fetch(`${API}/deobfuscate`, {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ code })
+                                        body: JSON.stringify({ code: input.value })
                                     });
                                     const data = await res.json();
-                                    document.getElementById('deobf-input').value = data.result;
+
+                                    input.value = data.result;
+                                    overlay.style.display = 'none';
+                                    btn.disabled = false;
                                 }}>
                                     <Layers size={16} /> Analyze & Cleanse
                                 </button>
