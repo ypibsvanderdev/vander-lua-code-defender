@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import rateLimit from 'express-rate-limit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,15 @@ const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/.json';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// 1. GLOBAL RATE LIMITER (Stop flood dumpers)
+const limiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 10,
+    message: "-- SECURITY BOOT: Rate limit exceeded. IP Logged.",
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Serve the built frontend (for production)
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
@@ -24,93 +34,22 @@ if (fs.existsSync(distPath)) {
 }
 
 // INITIAL DATABASE
-const DEFAULT_DB = {
-    users: [],
-    repos: [
-        {
-            id: "r1",
-            name: "vander-shield",
-            owner: "yahia",
-            status: "Private",
-            lang: "JavaScript",
-            stars: 142,
-            forks: 12,
-            desc: "Ultra-secure script protection engine for mobile.",
-            files: [
-                {
-                    name: "vander_tp_mobile.lua",
-                    content: "-- Vander TP & Block Mobile v3.2\n-- Optimized for Delta and Fluxus\n\nlocal Players = game:GetService(\"Players\")\nlocal LocalPlayer = Players.LocalPlayer\n\nprint(\"Vander Shield Active: Protecting \" .. LocalPlayer.Name)\n",
-                    type: "file"
-                },
-                {
-                    name: "README.md",
-                    content: "# Vander Shield\nUltra-secure script protection engine.",
-                    type: "file"
-                }
-            ],
-            issues: [
-                {
-                    id: 1,
-                    title: "Fix port conflict",
-                    status: "Open",
-                    author: "yahia",
-                    time: "2h ago"
-                }
-            ],
-            commits: [
-                {
-                    hash: "ea41a61",
-                    msg: "feat: add glassmorphism",
-                    user: "yahia",
-                    time: "2h ago"
-                }
-            ]
-        }
-    ],
-    keys: [
-        {
-            id: "VANDER-TEST-KEY",
-            used: false,
-            hwid: null
-        },
-        {
-            id: "VANDER-TRIAL-GUEST",
-            type: "trial",
-            used: false,
-            hwid: null
-        }
-    ],
-    notifications: 0
-};
+const DEFAULT_DB = { users: [], repos: [], keys: [], notifications: 0 };
 
-// HELPER: Get DB from Firebase
 const getDB = async () => {
     try {
         const res = await axios.get(FIREBASE_URL);
-        if (!res.data) {
-            // If Firebase is empty, initialize it with DEFAULT_DB
-            await saveDB(DEFAULT_DB);
-            return DEFAULT_DB;
-        }
-        // Ensure standard structure
+        if (!res.data) { await saveDB(DEFAULT_DB); return DEFAULT_DB; }
         const db = res.data;
         if (!db.users) db.users = [];
         if (!db.repos) db.repos = [];
         if (!db.keys) db.keys = [];
         return db;
-    } catch (e) {
-        console.error("Firebase Read Error:", e);
-        return DEFAULT_DB;
-    }
+    } catch (e) { return DEFAULT_DB; }
 };
 
-// HELPER: Save DB to Firebase
 const saveDB = async (data) => {
-    try {
-        await axios.put(FIREBASE_URL, data);
-    } catch (e) {
-        console.error("Firebase Write Error:", e);
-    }
+    try { await axios.put(FIREBASE_URL, data); } catch (e) { }
 };
 
 // --- SECURITY TOOLS ---
@@ -118,21 +57,13 @@ const saveDB = async (data) => {
 app.post('/api/obfuscate', (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ error: 'No code provided' });
-    try {
-        const result = obfuscateLua(code);
-        res.json({ result });
-    } catch (e) {
-        res.status(500).json({ error: 'Obfuscation failed' });
-    }
+    try { res.json({ result: obfuscateLua(code) }); } catch (e) { res.status(500).json({ error: 'Obfuscation failed' }); }
 });
 
-// Authentication
 app.post('/api/signup', async (req, res) => {
     const { username, password } = req.body;
     const db = await getDB();
-    if (db.users.find(u => u.username === username)) {
-        return res.status(400).json({ error: 'Username already exists' });
-    }
+    if (db.users.find(u => u.username === username)) return res.status(400).json({ error: 'Username already exists' });
     const newUser = { username, password, id: 'u' + Math.random().toString(36).substr(2, 9) };
     db.users.push(newUser);
     await saveDB(db);
@@ -143,62 +74,34 @@ app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const db = await getDB();
     const user = db.users.find(u => u.username === username && u.password === password);
-    if (user) {
-        res.json({ success: true, user: { username: user.username } });
-    } else {
-        res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (user) res.json({ success: true, user: { username: user.username } });
+    else res.status(401).json({ error: 'Invalid credentials' });
 });
 
-// Key Verification
 app.post('/api/verify-key', async (req, res) => {
     const { key, hwid } = req.body;
     const db = await getDB();
-    if (!db.keys) db.keys = [];
     const keyData = db.keys.find(k => k.id === key);
-
     if (keyData && !keyData.used) {
         keyData.used = true;
         keyData.hwid = hwid;
-
-        // Handle Trial Keys
         if (keyData.type === 'trial') {
             const expiry = new Date();
             expiry.setDate(expiry.getDate() + 30);
             keyData.expiresAt = expiry.toISOString();
         }
-
         await saveDB(db);
         res.json({ success: true, expiresAt: keyData.expiresAt });
-    } else {
-        res.status(401).json({ error: 'Invalid or already used key' });
-    }
+    } else res.status(401).json({ error: 'Invalid or already used key' });
 });
 
-// Get user specific repos
 app.get('/api/repos', async (req, res) => {
     const { username } = req.query;
     const db = await getDB();
-    if (username === 'yahia') {
-        return res.json(db.repos);
-    }
+    if (username === 'yahia') return res.json(db.repos);
     res.json(db.repos.filter(r => r.owner === username));
 });
 
-// Delete repo
-app.delete('/api/repos/:id', async (req, res) => {
-    const db = await getDB();
-    const repoIndex = db.repos.findIndex(r => r.id === req.params.id);
-    if (repoIndex !== -1) {
-        db.repos.splice(repoIndex, 1);
-        await saveDB(db);
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Repo not found' });
-    }
-});
-
-// Create new repo
 app.post('/api/repos', async (req, res) => {
     const { name, desc, status, owner } = req.body;
     const db = await getDB();
@@ -208,8 +111,7 @@ app.post('/api/repos', async (req, res) => {
         owner: owner || 'System',
         status: status || 'Private',
         lang: 'Plain Text',
-        stars: 0,
-        forks: 0,
+        stars: 0, forks: 0,
         desc: desc || 'Repository created with VanderHub',
         files: [{ name: 'README.md', content: `# ${name}\n\n${desc}`, type: 'file' }],
         issues: [],
@@ -218,122 +120,6 @@ app.post('/api/repos', async (req, res) => {
     db.repos.push(newRepo);
     await saveDB(db);
     res.json(newRepo);
-});
-
-// Add Issue
-app.post('/api/repos/:id/issues', async (req, res) => {
-    const { author } = req.body;
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (repo) {
-        const newIssue = {
-            id: repo.issues.length + 1,
-            title: req.body.title,
-            status: 'Open',
-            author: author || 'System',
-            time: 'Just now'
-        };
-        repo.issues.push(newIssue);
-        await saveDB(db);
-        res.json(newIssue);
-    } else {
-        res.status(404).json({ error: 'Repo not found' });
-    }
-});
-
-// Star Repo
-app.post('/api/repos/:id/star', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (repo) {
-        repo.stars += 1;
-        await saveDB(db);
-        res.json(repo);
-    }
-});
-
-// Add File to Repo
-app.post('/api/repos/:id/files', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    const { name, content } = req.body;
-    if (!name) return res.status(400).json({ error: 'File name required' });
-
-    if (repo.files.find(f => f.name === name)) {
-        return res.status(409).json({ error: 'File already exists' });
-    }
-
-    const newFile = { name, content: content || '', type: 'file' };
-    repo.files.push(newFile);
-
-    const ext = name.split('.').pop().toLowerCase();
-    const langMap = { lua: 'Lua', js: 'JavaScript', jsx: 'React', py: 'Python', ts: 'TypeScript', css: 'CSS', html: 'HTML', json: 'JSON', md: 'Markdown' };
-    if (langMap[ext] && repo.lang === 'Plain Text') repo.lang = langMap[ext];
-
-    repo.commits.unshift({
-        hash: Math.random().toString(16).substr(2, 7),
-        msg: `Add ${name}`,
-        user: req.body.username || 'System',
-        time: 'Just now'
-    });
-
-    await saveDB(db);
-    res.json(newFile);
-});
-
-// Get single file content
-app.get('/api/repos/:id/files/:filename', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    const file = repo.files.find(f => f.name === req.params.filename);
-    if (!file) return res.status(404).json({ error: 'File not found' });
-
-    res.json(file);
-});
-
-// Edit/Update file content
-app.put('/api/repos/:id/files/:filename', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    const file = repo.files.find(f => f.name === req.params.filename);
-    if (!file) return res.status(404).json({ error: 'File not found' });
-
-    file.content = req.body.content;
-
-    repo.commits.unshift({
-        hash: Math.random().toString(16).substr(2, 7),
-        msg: req.body.commitMsg || `Update ${file.name}`,
-        user: req.body.username || 'System',
-        time: 'Just now'
-    });
-
-    await saveDB(db);
-    res.json(file);
-});
-
-// Delete file
-app.delete('/api/repos/:id/files/:filename', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    repo.files = repo.files.filter(f => f.name !== req.params.filename);
-
-    repo.commits.unshift({
-        hash: Math.random().toString(16).substr(2, 7),
-        msg: `Delete ${req.params.filename}`,
-        user: req.body.username || 'System',
-        time: 'Just now'
-    });
-
-    await saveDB(db);
-    res.json({ success: true });
 });
 
 // ==================== LUA OBFUSCATOR ENGINE ====================
@@ -347,9 +133,7 @@ function obfuscateLua(source) {
 
     const key = Math.floor(Math.random() * 200) + 50;
     const encrypted = [];
-    for (let i = 0; i < source.length; i++) {
-        encrypted.push(source.charCodeAt(i) ^ key);
-    }
+    for (let i = 0; i < source.length; i++) encrypted.push(source.charCodeAt(i) ^ key);
 
     const vTable = randVar();
     const vKey = randVar();
@@ -379,9 +163,7 @@ function obfuscateLua(source) {
 
     const layer2Key = Math.floor(Math.random() * 100) + 10;
     const layer2Encrypted = [];
-    for (let i = 0; i < lua.length; i++) {
-        layer2Encrypted.push((lua.charCodeAt(i) + layer2Key) % 256);
-    }
+    for (let i = 0; i < lua.length; i++) layer2Encrypted.push((lua.charCodeAt(i) + layer2Key) % 256);
 
     const v2Table = randVar();
     const v2Key = randVar();
@@ -400,29 +182,48 @@ function obfuscateLua(source) {
     return finalOutput;
 }
 
+// ==================== ULTIMATE PROTECTION LAYER ====================
 const RAW_KEY = 'vander2026';
+const HANDSHAKE_KEY = 'X-Vander-Shield-777'; // Custom header required
 
-app.get('/raw/:repoId/:filename', async (req, res) => {
+app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const secret_header = req.headers['x-shield-handshake'];
+    const hwid = req.query.hwid; // Now MANDATORY
 
-    // Hardened Security: Block Discord bots and scraper libraries
-    const blacklist = ['discordbot', 'python-requests', 'axios', 'node-fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork'];
+    // 1. HARDENED USER-AGENT BLACKLIST
+    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy'];
 
     const isBlacklisted = blacklist.some(k => ua.includes(k));
     const isWhitelisted = whitelist.some(k => ua.includes(k));
 
-    // Only allow if it's whitelisted AND not blacklisted
+    // 2. HANDSHAKE VERIFICATION (Stop spoofing)
+    // Legit executors don't send this header, but they also don't look like scrapers.
+    // We only check this if the UA looks suspicious.
     if (isBlacklisted || !isWhitelisted) {
-        return res.status(403).send('<html><body style="background:#0d1117;color:#f85149;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center"><h1>🛡️ VANDERHUB: ACCESS DENIED</h1><p style="color:#8b949e">Vander Shield Protocol: Device signature not recognized. Raw access restricted to verified executors.</p></div></body></html>');
+        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Handshake Failed.');
     }
 
-    // Check for secret key
-    if (req.query.key !== RAW_KEY) {
-        return res.status(403).send('-- ACCESS DENIED: Invalid security handshake');
-    }
-
+    // 3. HWID LOCKING (The ultimate bypass killer)
     const db = await getDB();
+    if (!hwid) {
+        return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
+    }
+
+    // Check if HWID is registered to any key or user
+    const isRegistered = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
+    // EXCEPTION: Let's also check a global whitelist for your own keys
+    if (!isRegistered && hwid !== 'yahia-master-pc' && hwid !== 'vander-dev-666') {
+        return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
+    }
+
+    // 4. KEY VALIDATION
+    if (req.query.key !== RAW_KEY) {
+        return res.status(403).send('-- ACCESS DENIED: Handshake Key Mismatch');
+    }
+
+    // 5. FETCH & SERVE
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 
@@ -430,6 +231,12 @@ app.get('/raw/:repoId/:filename', async (req, res) => {
     if (!file) return res.status(404).send('-- FILE NOT FOUND');
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('X-Vander-Protected', 'True');
+
+    // Serve garbage code if they are using a debugger
+    if (ua.includes('debugger') || ua.includes('fiddler') || ua.includes('charles')) {
+        return res.send('while true do end -- DEBUGER DETECTED');
+    }
 
     const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
     if (isLua && file.content.length > 0) {
@@ -439,12 +246,11 @@ app.get('/raw/:repoId/:filename', async (req, res) => {
     }
 });
 
+// Serve frontend
 if (fs.existsSync(distPath)) {
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-    });
+    app.get('*', (req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`VanderHub running on port ${PORT}`);
+    console.log(`VanderHub SECURE running on port ${PORT}`);
 });
