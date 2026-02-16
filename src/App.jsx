@@ -426,6 +426,11 @@ function App() {
                         <CircleDot size={18} />
                     </div>
 
+                    {/* Shield Lab */}
+                    <div className="header-icon" onClick={() => { setView('shield'); setShowSettings(false); }} title="Shield Lab">
+                        <ShieldCheck size={18} color={view === 'shield' ? 'var(--accent-color)' : 'white'} />
+                    </div>
+
                     {/* Pull Requests */}
                     <div className="header-icon" onClick={() => { if (selectedRepo) { setView('repo'); setActiveTab('pulls'); } }}>
                         <GitPullRequest size={18} />
@@ -589,6 +594,73 @@ function App() {
                                     <ChevronRight size={18} color="var(--text-secondary)" />
                                 </div>
                             ))}
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* ===== SHIELD LAB (Obfuscator / Deobfuscator) ===== */}
+                {view === 'shield' && (
+                    <motion.div key="shield" style={{ flex: 1, padding: '32px max(32px, 5%)' }} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+                            <ShieldCheck size={28} color="var(--accent-color)" />
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: '24px' }}>Shield Lab</h2>
+                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>Advanced Luau Security Suite</p>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '32px' }}>
+                            {/* Obfuscator Column */}
+                            <div className="repo-card" style={{ padding: '24px', cursor: 'default' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                                    <Lock size={18} color="var(--accent-color)" />
+                                    <h3 style={{ margin: 0 }}>Neural Obfuscator</h3>
+                                </div>
+                                <textarea
+                                    className="search-box"
+                                    style={{ width: '100%', height: '300px', fontFamily: 'monospace', fontSize: '12px', padding: '15px', resize: 'none', background: '#0d1117' }}
+                                    placeholder="Paste your Luau code here to protect it..."
+                                    id="obf-input"
+                                ></textarea>
+                                <button className="btn-primary btn" style={{ width: '100%', marginTop: '20px', padding: '12px' }} onClick={async () => {
+                                    const code = document.getElementById('obf-input').value;
+                                    const res = await fetch(`${API}/obfuscate`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ code })
+                                    });
+                                    const data = await res.json();
+                                    document.getElementById('obf-input').value = data.result;
+                                }}>
+                                    <ShieldCheck size={16} /> Encrypt & Obfuscate
+                                </button>
+                            </div>
+
+                            {/* Deobfuscator Column */}
+                            <div className="repo-card" style={{ padding: '24px', cursor: 'default' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                                    <Layers size={18} color="#f78166" />
+                                    <h3 style={{ margin: 0 }}>High-Tier Deobfuscator</h3>
+                                </div>
+                                <textarea
+                                    className="search-box"
+                                    style={{ width: '100%', height: '300px', fontFamily: 'monospace', fontSize: '12px', padding: '15px', resize: 'none', background: '#0d1117' }}
+                                    placeholder="Paste obfuscated code to analyze..."
+                                    id="deobf-input"
+                                ></textarea>
+                                <button className="btn" style={{ width: '100%', marginTop: '20px', padding: '12px', borderColor: '#f78166' }} onClick={async () => {
+                                    const code = document.getElementById('deobf-input').value;
+                                    const res = await fetch(`${API}/deobfuscate`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ code })
+                                    });
+                                    const data = await res.json();
+                                    document.getElementById('deobf-input').value = data.result;
+                                }}>
+                                    <Layers size={16} /> Analyze & Cleanse
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 )}

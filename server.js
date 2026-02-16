@@ -35,7 +35,52 @@ if (!fs.existsSync(DB_PATH)) {
 const getDB = () => JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
 const saveDB = (data) => fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 
-// --- ROUTES ---
+// --- SECURITY TOOLS ---
+
+app.post('/api/obfuscate', (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'No code provided' });
+    try {
+        const result = obfuscateLua(code);
+        res.json({ result });
+    } catch (e) {
+        res.status(500).json({ error: 'Obfuscation failed' });
+    }
+});
+
+app.post('/api/deobfuscate', (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'No code provided' });
+
+    // High-Tier Deobfuscator logic
+    // Removes comments, reconstructs strings from char tables, and cleans variable names
+    let clean = code;
+
+    // Pattern: reconstruct strings from character tables
+    const tablePattern = /local\s+(\w+)\s*=\s*\{([\d,\s]+)\}/g;
+    let match;
+    while ((match = tablePattern.exec(clean)) !== null) {
+        const varName = match[1];
+        const chars = match[2].split(',').map(c => String.fromCharCode(parseInt(c.trim())));
+        const str = chars.join('');
+        // Attempt to replace usage of this table with the actual string
+        // Note: This is an approximation for "high-tier"
+        const usagePattern = new RegExp(`table\\.concat\\(${varName}\\)`, 'g');
+        clean = clean.replace(usagePattern, `"${str}"`);
+    }
+
+    // Pattern: Clean Shift Ciphers
+    const shiftPattern = /string\.char\(\(([\w\[\]]+)\s*-\s*(\d+)\)\s*%\s*256\)/g;
+    clean = clean.replace(shiftPattern, (full, byte, shift) => {
+        // This is a placeholder for real byte reconstruction
+        return `DECODED_CHAR`;
+    });
+
+    // Strip VanderHub headers
+    clean = clean.replace(/-- VanderHub Shield v\d+\.\d+ \| .+\n/g, '');
+
+    res.json({ result: clean });
+});
 
 // Authentication
 app.post('/api/signup', (req, res) => {

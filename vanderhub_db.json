@@ -36,11 +36,6 @@
           "type": "file"
         },
         {
-          "name": "admin_panel.lua",
-          "content": "-- Zenith Admin Terminal\n-- Rebranded to Vander Hub\n\nprint(\"Admin Terminal Initialized\")\n",
-          "type": "file"
-        },
-        {
           "name": "README.md",
           "content": "# Vander Shield\nUltra-secure script protection engine.",
           "type": "file"
