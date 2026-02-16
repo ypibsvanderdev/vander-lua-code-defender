@@ -1,8 +1,8 @@
 {
   "users": [
     {
-      "username": "meqda",
-      "password": "password",
+      "username": "yahia",
+      "password": "Eman165*",
       "id": "u1"
     }
   ],
@@ -10,7 +10,7 @@
     {
       "id": "r1",
       "name": "vander-shield",
-      "owner": "meqda",
+      "owner": "yahia",
       "status": "Private",
       "lang": "Lua",
       "stars": 142,
@@ -38,7 +38,7 @@
           "id": 1,
           "title": "Fix port conflict",
           "status": "Open",
-          "author": "meqda",
+          "author": "yahia",
           "time": "2h ago"
         }
       ],
@@ -46,7 +46,7 @@
         {
           "hash": "ea41a61",
           "msg": "feat: add glassmorphism",
-          "user": "meqda",
+          "user": "yahia",
           "time": "2h ago"
         }
       ]
