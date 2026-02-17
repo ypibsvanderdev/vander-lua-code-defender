@@ -76,26 +76,6 @@ const emergencySync = async (db) => {
     }
 };
 
-app.use(cors());
-app.use(firewall.middleware()); // THE FIREWALL: Must be first
-app.use(cookieParser());
-app.use(express.json({ limit: '10mb' }));
-
-// 1. GLOBAL RATE LIMITER (Stop flood dumpers)
-const limiter = rateLimit({
-    windowMs: 1 * 60 * 1000,
-    max: 10,
-    message: "-- SECURITY BOOT: Rate limit exceeded. IP Logged.",
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// Serve the built frontend (for production)
-const distPath = path.join(__dirname, 'dist');
-if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-}
-
 // INITIAL DATABASE
 const DEFAULT_DB = { users: [], repos: [], keys: [], notifications: 0 };
 
@@ -161,7 +141,21 @@ const saveDB = async (data, isInternalRepair = false) => {
     }
 };
 
-// --- SECURITY TOOLS ---
+app.use(cors());
+app.use(firewall.middleware()); // THE FIREWALL: Must be first
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+
+// 1. GLOBAL RATE LIMITER (Stop flood dumpers)
+const limiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 10,
+    message: "-- SECURITY BOOT: Rate limit exceeded. IP Logged.",
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// --- API ROUTES (Defined BEFORE static serving to prevent interference) ---
 
 app.post('/api/obfuscate', (req, res) => {
     const { code } = req.body;
@@ -207,6 +201,8 @@ app.post('/api/verify-key', async (req, res) => {
 // ONE-TIME FREE TRIAL (1 per HWID)
 app.post('/api/claim-trial', async (req, res) => {
     const { hwid } = req.body;
+    console.log(`[TRIAL] Claim attempt from HWID: ${hwid}`);
+
     if (!hwid) return res.status(400).json({ error: 'HWID required' });
 
     const db = await getDB();
@@ -215,6 +211,7 @@ app.post('/api/claim-trial', async (req, res) => {
     // Check if this HWID already claimed a REAL trial (ignore old legacy keys like VANDER-TRIAL-GUEST)
     const existingTrial = db.keys.find(k => k.type === 'trial' && k.hwid === hwid && k.createdAt);
     if (existingTrial) {
+        console.log(`[TRIAL] Denied for HWID ${hwid}: Already claimed.`);
         return res.status(403).json({ error: 'Trial already claimed on this device. Purchase a key for continued access.' });
     }
 
@@ -236,7 +233,7 @@ app.post('/api/claim-trial', async (req, res) => {
     });
 
     await saveDB(db);
-    console.log(`🎟️ Trial claimed: ${trialKey} for HWID: ${hwid.substring(0, 20)}...`);
+    console.log(`🎟️ [TRIAL] Successfully claimed: ${trialKey} for HWID: ${hwid}`);
     res.json({ success: true, key: trialKey, expiresAt: expiry.toISOString() });
 });
 
@@ -266,6 +263,14 @@ app.post('/api/repos', async (req, res) => {
     await saveDB(db);
     res.json(newRepo);
 });
+
+// --- STATIC ASSETS ---
+
+// Serve the built frontend (for production)
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+}
 
 // ==================== LUA OBFUSCATOR ENGINE ====================
 function obfuscateLua(source) {
