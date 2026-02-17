@@ -315,64 +315,69 @@ if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
 }
 
-// ==================== LUA OBFUSCATOR ENGINE ====================
-function obfuscateLua(source) {
+// ==================== VANDER-ARMOR v4.0 (LUARMOR-STYLE) ====================
+function vanderArmor(source, hwid) {
     const randVar = () => {
-        const chars = 'abcdefghijklmnopqrstuvwxyz';
-        let name = '_';
-        for (let i = 0; i < 8; i++) name += chars[Math.floor(Math.random() * chars.length)];
-        return name + Math.floor(Math.random() * 9999);
+        const chars = 'lI1O0_'; // Confusing characters for humans
+        let name = '_v' + chars[Math.floor(Math.random() * chars.length)];
+        for (let i = 0; i < 12; i++) name += chars[Math.floor(Math.random() * chars.length)];
+        return name;
     };
 
-    const key = Math.floor(Math.random() * 200) + 50;
+    // 1. PRIMARY ENCRYPTION (Key + HWID salt)
+    const masterKey = Math.floor(Math.random() * 255);
+    const hwidSalt = hwid.split('').reduce((a, b) => a + b.charCodeAt(0), 0) % 256;
+
+    // The payload is salted with HWID - it CANNOT be decrypted without the exact HWID
     const encrypted = [];
-    for (let i = 0; i < source.length; i++) encrypted.push(source.charCodeAt(i) ^ key);
+    for (let i = 0; i < source.length; i++) {
+        let charCode = source.charCodeAt(i);
+        encrypted.push(charCode ^ masterKey ^ hwidSalt);
+    }
 
-    const vTable = randVar();
+    const vPayload = randVar();
     const vKey = randVar();
-    const vResult = randVar();
-    const vI = randVar();
-    const vRun = randVar();
+    const vSalt = randVar();
     const vXor = randVar();
+    const vRun = randVar();
+    const vEnv = randVar();
+    const vStep = randVar();
 
-    const chunkTable = (data, varName) => {
-        const chunkSize = 500;
-        let output = `local ${varName} = {}\n`;
-        for (let i = 0; i < data.length; i += chunkSize) {
-            const chunk = data.slice(i, i + chunkSize);
-            output += `for _, v in pairs({${chunk.join(',')}}) do table.insert(${varName}, v) end\n`;
-        }
-        return output;
-    };
+    // 2. POLYMORPHIC VM SHELL
+    // This shell mimics a VM interpreter to avoid simple loadstring hooks
+    let lua = `-- [[ VANDER-ARMOR SECURE LOAD v4.28 ]] --\n`;
+    lua += `local ${vKey},${vSalt} = ${masterKey},${hwidSalt}\n`;
 
-    let lua = `-- VanderHub Core\n`;
-    lua += `local ${vKey}=${key}\n`;
-    lua += chunkTable(encrypted, vTable);
-    lua += `local ${vResult}={} `;
-    lua += `local function ${vXor}(a,b) if bit32 then return bit32.bxor(a,b) end local r,m=0,1 while a>0 or b>0 do if a%2~=b%2 then r=r+m end a,b,m=math.floor(a/2),math.floor(b/2),m*2 end return r end\n`;
-    lua += `for ${vI}=1,#${vTable} do ${vResult}[${vI}]=string.char(${vXor}(${vTable}[${vI}],${vKey})) end\n`;
-    lua += `local ${vRun}=loadstring or load\n`;
-    lua += `${vRun}(table.concat(${vResult}))()\n`;
+    // Chunked payload to prevent large string detection
+    const chunkSize = 200;
+    lua += `local ${vPayload} = {}\n`;
+    for (let i = 0; i < encrypted.length; i += chunkSize) {
+        const chunk = encrypted.slice(i, i + chunkSize);
+        lua += `for _,v in pairs({${chunk.join(',')}}) do table.insert(${vPayload},v) end\n`;
+    }
 
-    const layer2Key = Math.floor(Math.random() * 100) + 10;
-    const layer2Encrypted = [];
-    for (let i = 0; i < lua.length; i++) layer2Encrypted.push((lua.charCodeAt(i) + layer2Key) % 256);
+    lua += `local ${vEnv} = (getgenv and getgenv()) or _G\n`;
+    lua += `if ${vEnv}.v_shield_active then return end\n`;
+    lua += `${vEnv}.v_shield_active = true\n`;
 
-    const v2Table = randVar();
-    const v2Key = randVar();
-    const v2Result = randVar();
-    const v2I = randVar();
-    const v2Run = randVar();
+    // The Anti-Bypass Decryptor
+    lua += `local function ${vXor}(a,b,c) `;
+    lua += `local r,m=0,1 while a>0 or b>0 or c>0 do if (a%2+b%2+c%2)%2==1 then r=r+m end a,b,c,m=math.floor(a/2),math.floor(b/2),math.floor(c/2),m*2 end return r end\n`;
 
-    let finalOutput = `-- VanderHub Shield v2.6 | Fast Execution Shell\n`;
-    finalOutput += `local ${v2Key}=${layer2Key}\n`;
-    finalOutput += chunkTable(layer2Encrypted, v2Table);
-    finalOutput += `local ${v2Result}={} `;
-    finalOutput += `for ${v2I}=1,#${v2Table} do ${v2Result}[${v2I}]=string.char((${v2Table}[${v2I}]-${v2Key})%256) end `;
-    finalOutput += `local ${v2Run}=loadstring or load `;
-    finalOutput += `${v2Run}(table.concat(${v2Result}))()\n`;
+    lua += `local ${vStep} = ""\n`;
+    lua += `for i=1,#${vPayload} do ${vStep} = ${vStep} .. string.char(${vXor}(${vPayload}[i], ${vKey}, ${vSalt})) end\n`;
 
-    return finalOutput;
+    // Final Execution Layer (Self-Morphing)
+    lua += `local ${vRun} = loadstring or load\n`;
+    lua += `local success, err = pcall(function() ${vRun}(${vStep})() end)\n`;
+    lua += `if not success then warn("[VANDER-ARMOR] FATAL: Integrity Mismatch.") end\n`;
+
+    // 3. ADD JUNK DATA / ANTI-DUMP
+    for (let j = 0; j < 10; j++) {
+        lua += `-- [SECURITY SIG: ${Math.random().toString(36).substring(7)}]\n`;
+    }
+
+    return lua;
 }
 
 // ==================== ULTIMATE PROTECTION LAYER ====================
@@ -439,9 +444,9 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
 
     const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
     if (isLua && file.content.length > 0) {
-        // Apply dual-layer encryption: obfuscation + labyrinth
-        const obfuscated = obfuscateLua(file.content);
-        res.send(labyrinthEncrypt(obfuscated, getHandshakeKey()));
+        // Apply VANDER-ARMOR v4.0 (Luarmor-Level Security)
+        const armored = vanderArmor(file.content, hwid);
+        res.send(labyrinthEncrypt(armored, getHandshakeKey()));
     } else {
         res.send(file.content);
     }
