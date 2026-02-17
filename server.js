@@ -228,6 +228,72 @@ app.post('/api/repos', async (req, res) => {
     res.json(newRepo);
 });
 
+app.delete('/api/repos/:id', async (req, res) => {
+    const db = await getDB();
+    db.repos = db.repos.filter(r => r.id !== req.params.id);
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.post('/api/repos/:repoId/files', async (req, res) => {
+    const { name, content } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    repo.files.push({ name, content: content || '', type: 'file' });
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Add ${name}`, user: 'meqda', time: 'Just now' });
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.put('/api/repos/:repoId/files/:filename', async (req, res) => {
+    const { content, commitMsg } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    const file = repo.files.find(f => f.name === req.params.filename);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    file.content = content;
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: commitMsg || `Update ${req.params.filename}`, user: 'meqda', time: 'Just now' });
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.delete('/api/repos/:repoId/files/:filename', async (req, res) => {
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    repo.files = repo.files.filter(f => f.name !== req.params.filename);
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Delete ${req.params.filename}`, user: 'meqda', time: 'Just now' });
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.post('/api/repos/:id/star', async (req, res) => {
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.id);
+    if (repo) {
+        repo.stars = (repo.stars || 0) + 1;
+        await saveDB(db);
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/repos/:id/issues', async (req, res) => {
+    const { title } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.id);
+    if (repo) {
+        repo.issues.unshift({ id: Date.now(), title, status: 'Open', author: 'meqda', time: 'Just now' });
+        await saveDB(db);
+    }
+    res.json({ success: true });
+});
+
 // ==================== LUA OBFUSCATOR ENGINE ====================
 function obfuscateLua(source) {
     const randVar = () => {
