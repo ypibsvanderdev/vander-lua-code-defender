@@ -377,6 +377,80 @@ app.post('/api/repos', async (req, res) => {
     res.json(newRepo);
 });
 
+// --- REPOSITORY MANAGEMENT ---
+
+app.post('/api/repos/:repoId/files', async (req, res) => {
+    const { name, content } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    if (repo.files.find(f => f.name === name)) return res.status(400).json({ error: 'File already exists' });
+
+    repo.files.push({ name, content, type: 'file' });
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Add ${name}`, user: repo.owner, time: 'Just now' });
+
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.put('/api/repos/:repoId/files/:filename', async (req, res) => {
+    const { content, commitMsg } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    const file = repo.files.find(f => f.name === req.params.filename);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    file.content = content;
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: commitMsg || `Update ${file.name}`, user: repo.owner, time: 'Just now' });
+
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.delete('/api/repos/:repoId/files/:filename', async (req, res) => {
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    repo.files = repo.files.filter(f => f.name !== req.params.filename);
+    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Delete ${req.params.filename}`, user: repo.owner, time: 'Just now' });
+
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.delete('/api/repos/:repoId', async (req, res) => {
+    const db = await getDB();
+    db.repos = db.repos.filter(r => r.id !== req.params.repoId);
+    await saveDB(db);
+    res.json({ success: true });
+});
+
+app.post('/api/repos/:repoId/star', async (req, res) => {
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (repo) {
+        repo.stars = (repo.stars || 0) + 1;
+        await saveDB(db);
+        res.json({ success: true });
+    } else res.status(404).json({ error: 'Repo not found' });
+});
+
+app.post('/api/repos/:repoId/issues', async (req, res) => {
+    const { title, author } = req.body;
+    const db = await getDB();
+    const repo = db.repos.find(r => r.id === req.params.repoId);
+    if (repo) {
+        repo.issues = repo.issues || [];
+        repo.issues.push({ id: repo.issues.length + 1, title, status: 'Open', author: author || 'Guest', time: 'Just now' });
+        await saveDB(db);
+        res.json({ success: true });
+    } else res.status(404).json({ error: 'Repo not found' });
+});
+
 // --- STATIC ASSETS ---
 
 // Serve the built frontend (for production)

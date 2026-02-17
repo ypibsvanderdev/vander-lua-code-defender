@@ -267,7 +267,8 @@ function App() {
     };
 
     const refreshRepo = async () => {
-        const r = await fetch(`${API}/repos`);
+        if (!user) return;
+        const r = await fetch(`${API}/repos?username=${user.username}`);
         const d = await r.json();
         setRepos(d);
         if (selectedRepo) {
