@@ -30,9 +30,10 @@ const checkIntegrity = async () => {
 
     if (!db || !db.repos || db.repos.length === 0) {
         console.warn("⚠️ WARNING: Cloud Database is EMPTY. Attempting Emergency Sync from local files...");
-        await emergencySync(DEFAULT_DB);
+        await emergencySync(db);
         INITIAL_LOAD_COMPLETE = true;
-    } else {
+    }
+    else {
         console.log("✅ Database verified and ready.");
         INITIAL_LOAD_COMPLETE = true;
     }
@@ -109,25 +110,23 @@ const getDB = async () => {
         // PROTECTION: If Firebase is empty/null but we have local backup, USE LOCAL BACKUP.
         if (!cloudData || !cloudData.repos || cloudData.repos.length === 0) {
             if (localData && localData.repos && localData.repos.length > 0) {
-                console.warn("🛡️ [GUARD] Firebase empty/null. Recovering from Local Backup...");
+                console.warn("🛡️ [GUARD] Firebase empty. Recovering from Local Backup...");
                 INITIAL_LOAD_COMPLETE = true;
                 return localData;
             }
         }
 
-        if (!cloudData) return DEFAULT_DB;
+        const finalDB = typeof cloudData === 'object' && cloudData !== null ? cloudData : {};
+        if (!finalDB.repos) finalDB.repos = [];
+        if (!finalDB.users) finalDB.users = [];
+        if (!finalDB.keys) finalDB.keys = [];
 
-        const db = cloudData;
-        db.users = db.users || [];
-        db.repos = db.repos || [];
-        db.keys = db.keys || [];
-
-        if (db.repos && db.repos.length > 0) {
-            fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(db, null, 2));
+        if (finalDB.repos.length > 0) {
+            fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(finalDB, null, 2));
             INITIAL_LOAD_COMPLETE = true;
         }
 
-        return db;
+        return finalDB;
     } catch (e) {
         console.error("❌ Firebase Fetch Error:", e.message);
         if (fs.existsSync(path.join(__dirname, 'vanderhub_db.json'))) {
