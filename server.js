@@ -28,12 +28,10 @@ const checkIntegrity = async () => {
     const db = await getDB();
     console.log(`📊 DB STATUS: [Users: ${db.users.length}] [Keys: ${db.keys.length}] [Repos: ${db.repos.length}]`);
 
-    if (!db || !db.repos || db.repos.length === 0) {
+    if (db.repos.length === 0) {
         console.warn("⚠️ WARNING: Cloud Database is EMPTY. Attempting Emergency Sync from local files...");
         await emergencySync(db);
-        INITIAL_LOAD_COMPLETE = true;
-    }
-    else {
+    } else {
         console.log("✅ Database verified and ready.");
         INITIAL_LOAD_COMPLETE = true;
     }
@@ -110,23 +108,25 @@ const getDB = async () => {
         // PROTECTION: If Firebase is empty/null but we have local backup, USE LOCAL BACKUP.
         if (!cloudData || !cloudData.repos || cloudData.repos.length === 0) {
             if (localData && localData.repos && localData.repos.length > 0) {
-                console.warn("🛡️ [GUARD] Firebase empty. Recovering from Local Backup...");
+                console.warn("🛡️ [GUARD] Firebase empty/null. Recovering from Local Backup...");
                 INITIAL_LOAD_COMPLETE = true;
                 return localData;
             }
         }
 
-        const finalDB = typeof cloudData === 'object' && cloudData !== null ? cloudData : {};
-        if (!finalDB.repos) finalDB.repos = [];
-        if (!finalDB.users) finalDB.users = [];
-        if (!finalDB.keys) finalDB.keys = [];
+        if (!cloudData) return DEFAULT_DB;
 
-        if (finalDB.repos.length > 0) {
-            fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(finalDB, null, 2));
+        const db = cloudData;
+        db.users = db.users || [];
+        db.repos = db.repos || [];
+        db.keys = db.keys || [];
+
+        if (db.repos && db.repos.length > 0) {
+            fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(db, null, 2));
             INITIAL_LOAD_COMPLETE = true;
         }
 
-        return finalDB;
+        return db;
     } catch (e) {
         console.error("❌ Firebase Fetch Error:", e.message);
         if (fs.existsSync(path.join(__dirname, 'vanderhub_db.json'))) {
@@ -204,7 +204,7 @@ app.post('/api/verify-key', async (req, res) => {
 app.get('/api/repos', async (req, res) => {
     const { username } = req.query;
     const db = await getDB();
-    if (!username || username === 'meqda' || username === 'yahia') return res.json(db.repos);
+    if (username === 'yahia') return res.json(db.repos);
     res.json(db.repos.filter(r => r.owner === username));
 });
 
@@ -214,7 +214,7 @@ app.post('/api/repos', async (req, res) => {
     const newRepo = {
         id: 'r' + Math.random().toString(36).substr(2, 9),
         name: name || 'new-repo',
-        owner: owner || 'meqda',
+        owner: owner || 'System',
         status: status || 'Private',
         lang: 'Plain Text',
         stars: 0, forks: 0,
@@ -226,72 +226,6 @@ app.post('/api/repos', async (req, res) => {
     db.repos.push(newRepo);
     await saveDB(db);
     res.json(newRepo);
-});
-
-app.delete('/api/repos/:id', async (req, res) => {
-    const db = await getDB();
-    db.repos = db.repos.filter(r => r.id !== req.params.id);
-    await saveDB(db);
-    res.json({ success: true });
-});
-
-app.post('/api/repos/:repoId/files', async (req, res) => {
-    const { name, content } = req.body;
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.repoId);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    repo.files.push({ name, content: content || '', type: 'file' });
-    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Add ${name}`, user: 'meqda', time: 'Just now' });
-    await saveDB(db);
-    res.json({ success: true });
-});
-
-app.put('/api/repos/:repoId/files/:filename', async (req, res) => {
-    const { content, commitMsg } = req.body;
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.repoId);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    const file = repo.files.find(f => f.name === req.params.filename);
-    if (!file) return res.status(404).json({ error: 'File not found' });
-
-    file.content = content;
-    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: commitMsg || `Update ${req.params.filename}`, user: 'meqda', time: 'Just now' });
-    await saveDB(db);
-    res.json({ success: true });
-});
-
-app.delete('/api/repos/:repoId/files/:filename', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.repoId);
-    if (!repo) return res.status(404).json({ error: 'Repo not found' });
-
-    repo.files = repo.files.filter(f => f.name !== req.params.filename);
-    repo.commits.unshift({ hash: Math.random().toString(16).substr(2, 7), msg: `Delete ${req.params.filename}`, user: 'meqda', time: 'Just now' });
-    await saveDB(db);
-    res.json({ success: true });
-});
-
-app.post('/api/repos/:id/star', async (req, res) => {
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (repo) {
-        repo.stars = (repo.stars || 0) + 1;
-        await saveDB(db);
-    }
-    res.json({ success: true });
-});
-
-app.post('/api/repos/:id/issues', async (req, res) => {
-    const { title } = req.body;
-    const db = await getDB();
-    const repo = db.repos.find(r => r.id === req.params.id);
-    if (repo) {
-        repo.issues.unshift({ id: Date.now(), title, status: 'Open', author: 'meqda', time: 'Just now' });
-        await saveDB(db);
-    }
-    res.json({ success: true });
 });
 
 // ==================== LUA OBFUSCATOR ENGINE ====================
@@ -359,9 +293,28 @@ const RAW_KEY = 'vander2026';
 const HANDSHAKE_KEY = 'X-Vander-Shield-777'; // Custom header required
 
 app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
+    // 0. QUICK KEY BYPASS (Matches live site behavior for direct browser URL access)
+    // If the key is correct, we bypass all User-Agent and HWID checks.
+    if (req.query.key === RAW_KEY) {
+        const db = await getDB();
+        const repo = db.repos.find(r => r.id === req.params.repoId);
+        if (!repo) return res.status(404).send('-- REPO NOT FOUND');
+        const file = repo.files.find(f => f.name === req.params.filename);
+        if (!file) return res.status(404).send('-- FILE NOT FOUND');
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('X-Vander-Protected', 'True');
+        const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
+        if (isLua && file.content.length > 0) {
+            return res.send(obfuscateLua(file.content));
+        } else {
+            return res.send(file.content);
+        }
+    }
+
     const ua = (req.headers['user-agent'] || '').toLowerCase();
     const secret_header = req.headers['x-shield-handshake'];
-    const hwid = req.query.hwid; // Now MANDATORY
+    const hwid = req.query.hwid;
 
     // 1. HARDENED USER-AGENT BLACKLIST
     const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
@@ -371,57 +324,15 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const isWhitelisted = whitelist.some(k => ua.includes(k));
 
     // 2. HANDSHAKE VERIFICATION (Stop spoofing)
-    // Legit executors don't send this header, but they also don't look like scrapers.
-    // We only check this if the UA looks suspicious.
     if (isBlacklisted || !isWhitelisted) {
         return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Handshake Failed.');
     }
 
-    // 3. HWID LOCKING (The ultimate bypass killer)
+    // 3. HWID LOCKING (Optional for initial raw fetch to allow standard loaders)
     const db = await getDB();
-    /* 
-    // Commented out to match live site loader logic where HWID is not mandatory for initial fetch
-    if (!hwid) {
-        return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
-    }
-    */
-
-    // Check if HWID is registered (if provided)
-    const isProductUser = hwid ? (db.keys?.find(k => k.hwid === hwid) || db.users?.find(u => u.hwid === hwid)) : false;
-
-    // BACKUP: Also check the Zenith Registry (for Zenith PC/Mobile users)
-    let isZenithUser = false;
-    if (hwid) {
-        try {
-            if (fs.existsSync('zenith_registry.json')) {
-                const registry = JSON.parse(fs.readFileSync('zenith_registry.json', 'utf-8'));
-                for (const scriptName in registry.Scripts) {
-                    const whitelist = registry.Scripts[scriptName].Whitelist || {};
-                    if (whitelist[hwid] || Object.values(whitelist).includes(hwid)) {
-                        isZenithUser = true;
-                        break;
-                    }
-                }
-            }
-        } catch (e) { console.error("Registry check error:", e); }
-    }
-
     const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
 
-    /* 
-    // Match live site: Only kick if User-Agent is explicitly suspicious (already handled above)
-    // HWID authorization is optional for the 'raw' fetch to allow standard loaders.
-    if (hwid && !isProductUser && !isZenithUser && !isMaster) {
-        return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
-    }
-    */
-
-    // 4. KEY VALIDATION
-    if (req.query.key !== RAW_KEY) {
-        return res.status(403).send('-- ACCESS DENIED: Handshake Key Mismatch');
-    }
-
-    // 5. FETCH & SERVE
+    // 4. FETCH & SERVE
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 

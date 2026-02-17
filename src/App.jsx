@@ -177,7 +177,8 @@ function App() {
     };
 
     const copyLoadstring = (repoId, fname) => {
-        const url = `loadstring(game:HttpGet("${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026"))()`;
+        const fullURL = `${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026`;
+        const url = `loadstring(game:HttpGet("${fullURL}"))()`;
         navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
