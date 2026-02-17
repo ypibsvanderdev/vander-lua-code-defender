@@ -31,6 +31,8 @@ const checkIntegrity = async () => {
     if (db.repos.length === 0) {
         console.warn("⚠️ WARNING: Cloud Database is EMPTY. Attempting Emergency Sync from local files...");
         await emergencySync(db);
+        // Even if emergency sync finds nothing, we allow the app to function
+        INITIAL_LOAD_COMPLETE = true;
     } else {
         console.log("✅ Database verified and ready.");
         INITIAL_LOAD_COMPLETE = true;
