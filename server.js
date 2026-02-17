@@ -28,10 +28,9 @@ const checkIntegrity = async () => {
     const db = await getDB();
     console.log(`📊 DB STATUS: [Users: ${db.users.length}] [Keys: ${db.keys.length}] [Repos: ${db.repos.length}]`);
 
-    if (db.repos.length === 0) {
+    if (!db || !db.repos || db.repos.length === 0) {
         console.warn("⚠️ WARNING: Cloud Database is EMPTY. Attempting Emergency Sync from local files...");
-        await emergencySync(db);
-        // Even if emergency sync finds nothing, we allow the app to function
+        await emergencySync(DEFAULT_DB);
         INITIAL_LOAD_COMPLETE = true;
     } else {
         console.log("✅ Database verified and ready.");
@@ -206,7 +205,7 @@ app.post('/api/verify-key', async (req, res) => {
 app.get('/api/repos', async (req, res) => {
     const { username } = req.query;
     const db = await getDB();
-    if (username === 'yahia') return res.json(db.repos);
+    if (!username || username === 'meqda' || username === 'yahia') return res.json(db.repos);
     res.json(db.repos.filter(r => r.owner === username));
 });
 
@@ -216,7 +215,7 @@ app.post('/api/repos', async (req, res) => {
     const newRepo = {
         id: 'r' + Math.random().toString(36).substr(2, 9),
         name: name || 'new-repo',
-        owner: owner || 'System',
+        owner: owner || 'meqda',
         status: status || 'Private',
         lang: 'Plain Text',
         stars: 0, forks: 0,

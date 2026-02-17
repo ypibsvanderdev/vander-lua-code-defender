@@ -76,7 +76,7 @@ function App() {
         await fetch(`${API}/repos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: newName.trim().replace(/\s+/g, '-').toLowerCase(), desc: newDesc, status: newPrivate ? 'Private' : 'Public' })
+            body: JSON.stringify({ name: newName.trim().replace(/\s+/g, '-').toLowerCase(), desc: newDesc, status: newPrivate ? 'Private' : 'Public', owner: 'meqda' })
         });
         setShowNewRepo(false);
         setNewName(''); setNewDesc(''); setNewPrivate(true);
