@@ -28,7 +28,7 @@ async function syncAll() {
             let content = null;
             // Find the first path that actually exists
             for (const p of f.paths) {
-                const resolved = path.resolve(__dirname, p);
+                const resolved = path.isAbsolute(p) ? p : path.resolve(__dirname, p);
                 if (fs.existsSync(resolved)) {
                     content = fs.readFileSync(resolved, 'utf-8');
                     break;
@@ -42,7 +42,7 @@ async function syncAll() {
                     db.repos.push(repo);
                 }
 
-                let file = repo.files.find(fo => fo.name === f.name || fo.name.includes('tp'));
+                let file = repo.files.find(fo => fo.name === f.name);
                 if (file) {
                     file.content = content;
                 } else {
@@ -55,9 +55,8 @@ async function syncAll() {
             }
         }
 
-        // CRITICAL PROTECTION: Never push if nothing was found
         if (updateCount === 0) {
-            console.error("⛔ [SYNC BLOCKED] No local files were found. Firebase will NOT be updated to prevent wipe.");
+            console.error("⛔ [SYNC BLOCKED] No local files were found.");
             return;
         }
 
