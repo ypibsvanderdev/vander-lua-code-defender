@@ -177,8 +177,7 @@ function App() {
     };
 
     const copyLoadstring = (repoId, fname) => {
-        const fullURL = `${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026`;
-        const url = `loadstring(game:HttpGet("${fullURL}"))()`;
+        const url = `loadstring(game:HttpGet("${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026&hwid=" .. (gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId())))()`;
         navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -569,7 +568,7 @@ function App() {
                                         </div>
                                     </div>
                                     <code style={{ fontSize: '12px', color: '#e6edf3', wordBreak: 'break-all', lineHeight: '1.5', fontFamily: "'JetBrains Mono', monospace" }}>
-                                        {`loadstring(game:HttpGet("${window.location.origin}${RAW}/${selectedRepo.id}/${encodeURIComponent(viewingFile.name)}?key=vander2026"))()`}
+                                        {`loadstring(game:HttpGet("${window.location.origin}${RAW}/${selectedRepo.id}/${encodeURIComponent(viewingFile.name)}?key=vander2026&hwid=" .. (gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId())))()`}
                                     </code>
                                 </div>
 
