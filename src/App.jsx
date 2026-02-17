@@ -26,6 +26,7 @@ function App() {
     const [loginUsername, setLoginUsername] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
     const [authError, setAuthError] = useState('');
+    const [trialClaiming, setTrialClaiming] = useState(false);
 
     // Modals
     const [showNewRepo, setShowNewRepo] = useState(false);
@@ -127,6 +128,25 @@ function App() {
                 setAuthError('');
             } else { setAuthError(d.error); }
         } catch (e) { setAuthError('Connection failed'); }
+    };
+
+    const handleClaimTrial = async () => {
+        setTrialClaiming(true);
+        setAuthError('');
+        try {
+            const r = await fetch(`${API}/claim-trial`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hwid: navigator.userAgent })
+            });
+            const d = await r.json();
+            if (d.success) {
+                setIsKeyVerified(true);
+                localStorage.setItem('vander_key_verified', 'true');
+                setAuthError('');
+            } else { setAuthError(d.error); }
+        } catch (e) { setAuthError('Connection failed'); }
+        setTrialClaiming(false);
     };
 
     const createRepo = async () => {
@@ -277,12 +297,18 @@ function App() {
 
                     {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
 
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '20px' }} onClick={handleVerifyKey}>
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '12px' }} onClick={handleVerifyKey}>
                         Verify Access
                     </button>
 
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', marginBottom: '12px', opacity: trialClaiming ? 0.6 : 1 }}
+                        onClick={handleClaimTrial} disabled={trialClaiming}>
+                        {trialClaiming ? '⏳ Claiming...' : '🎟️ Claim 30-Day Free Trial'}
+                    </button>
+                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '20px', opacity: 0.7 }}>One-time trial per device. No card required.</p>
+
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Don't have a key? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Purchase a key here</a>
+                        Already used your trial? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Purchase a key here</a>
                     </p>
                 </motion.div>
             </div>

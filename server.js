@@ -204,6 +204,42 @@ app.post('/api/verify-key', async (req, res) => {
     } else res.status(401).json({ error: 'Invalid or already used key' });
 });
 
+// ONE-TIME FREE TRIAL (1 per HWID)
+app.post('/api/claim-trial', async (req, res) => {
+    const { hwid } = req.body;
+    if (!hwid) return res.status(400).json({ error: 'HWID required' });
+
+    const db = await getDB();
+    db.keys = db.keys || [];
+
+    // Check if this HWID already claimed a trial
+    const existingTrial = db.keys.find(k => k.type === 'trial' && k.hwid === hwid);
+    if (existingTrial) {
+        return res.status(403).json({ error: 'Trial already claimed on this device. Purchase a key for continued access.' });
+    }
+
+    // Generate a trial key
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const seg = () => { let s = ''; for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random() * chars.length)]; return s; };
+    const trialKey = `TRIAL-${seg()}-${seg()}`;
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 30);
+
+    db.keys.push({
+        id: trialKey,
+        type: 'trial',
+        used: true,
+        hwid: hwid,
+        createdAt: new Date().toISOString(),
+        expiresAt: expiry.toISOString()
+    });
+
+    await saveDB(db);
+    console.log(`🎟️ Trial claimed: ${trialKey} for HWID: ${hwid.substring(0, 20)}...`);
+    res.json({ success: true, key: trialKey, expiresAt: expiry.toISOString() });
+});
+
 app.get('/api/repos', async (req, res) => {
     const { username } = req.query;
     const db = await getDB();
