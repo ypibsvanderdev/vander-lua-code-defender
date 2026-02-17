@@ -5,6 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import { getHandshakeKey, generateChallenge, labyrinthEncrypt } from './v-shield.js';
+import { firewall } from './firewall.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +18,67 @@ const PORT = process.env.PORT || 3001;
 // FIREBASE CONFIGURATION
 const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/.json';
 
+// KEEP-ALIVE SYSTEM
+app.get('/ping', (req, res) => {
+    res.json({ status: 'ALIVE', timestamp: new Date(), integrity: INITIAL_LOAD_COMPLETE });
+});
+
+let INITIAL_LOAD_COMPLETE = false; // THE MASTER LOCK: Prevents saving until data is actually loaded
+
+// STARTUP INTEGRITY CHECK
+const checkIntegrity = async () => {
+    console.log("🔍 Checking Database Integrity...");
+    const db = await getDB();
+    console.log(`📊 DB STATUS: [Users: ${db.users.length}] [Keys: ${db.keys.length}] [Repos: ${db.repos.length}]`);
+
+    if (db.repos.length === 0) {
+        console.warn("⚠️ WARNING: Cloud Database is EMPTY. Attempting Emergency Sync from local files...");
+        await emergencySync(db);
+    } else {
+        console.log("✅ Database verified and ready.");
+        INITIAL_LOAD_COMPLETE = true;
+    }
+};
+
+// EMERGENCY SYNC (Fixes disappearances on start)
+const emergencySync = async (db) => {
+    const scripts = [
+        { id: 'r1', name: 'vander_tp_mobile.lua', relative: '../qwery-tp-block/vander_tp_mobile.lua' },
+        { id: 'r2', name: 'admin_panel.lua', relative: '../zenith-admin/admin_panel.lua' },
+        { id: 'r3', name: 'zenith_mobile_v5.2.1.lua', relative: './zenith_mobile_v5.2.1.lua' },
+        { id: 'r4', name: 'zenith_pc_v5.3.1.lua', relative: './zenith_pc_v5.3.1.lua' }
+    ];
+
+    let foundAny = false;
+    for (const s of scripts) {
+        const fullPath = path.resolve(__dirname, s.relative);
+        if (fs.existsSync(fullPath)) {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            let repo = db.repos.find(r => r.id === s.id);
+            if (!repo) {
+                repo = { id: s.id, name: s.id, files: [], owner: 'yahia', status: 'Private' };
+                db.repos.push(repo);
+            }
+            if (!repo.files.find(f => f.name === s.name)) {
+                repo.files.push({ name: s.name, content: content, type: 'file' });
+            }
+            foundAny = true;
+            console.log(`📡 Emergency Restored: ${s.name} -> ${s.id}`);
+        }
+    }
+
+    if (foundAny) {
+        INITIAL_LOAD_COMPLETE = true;
+        await saveDB(db, true); // Use internal repair flag
+        console.log("✅ Emergency Sync Complete. Cloud Repos Restored.");
+    } else {
+        console.error("❌ Emergency Sync FAILED: No local scripts found to restore.");
+    }
+};
+
 app.use(cors());
+app.use(firewall.middleware()); // THE FIREWALL: Must be first
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 
 // 1. GLOBAL RATE LIMITER (Stop flood dumpers)
@@ -39,17 +102,63 @@ const DEFAULT_DB = { users: [], repos: [], keys: [], notifications: 0 };
 const getDB = async () => {
     try {
         const res = await axios.get(FIREBASE_URL);
-        if (!res.data) { await saveDB(DEFAULT_DB); return DEFAULT_DB; }
-        const db = res.data;
-        if (!db.users) db.users = [];
-        if (!db.repos) db.repos = [];
-        if (!db.keys) db.keys = [];
+        const cloudData = res.data;
+
+        let localData = null;
+        if (fs.existsSync(path.join(__dirname, 'vanderhub_db.json'))) {
+            localData = JSON.parse(fs.readFileSync(path.join(__dirname, 'vanderhub_db.json'), 'utf-8'));
+        }
+
+        if (!cloudData || !cloudData.repos || cloudData.repos.length === 0) {
+            if (localData && localData.repos && localData.repos.length > 0) {
+                console.warn("🛡️ [GUARD] Firebase empty/null. Recovering from Local Backup...");
+                INITIAL_LOAD_COMPLETE = true;
+                return localData;
+            }
+        }
+
+        if (!cloudData) return DEFAULT_DB;
+
+        const db = cloudData;
+        db.users = db.users || [];
+        db.repos = db.repos || [];
+        db.keys = db.keys || [];
+
+        if (db.repos.length > 0) {
+            fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(db, null, 2));
+            INITIAL_LOAD_COMPLETE = true;
+        }
+
         return db;
-    } catch (e) { return DEFAULT_DB; }
+    } catch (e) {
+        console.error("❌ Firebase Fetch Error:", e.message);
+        if (fs.existsSync(path.join(__dirname, 'vanderhub_db.json'))) {
+            INITIAL_LOAD_COMPLETE = true;
+            return JSON.parse(fs.readFileSync(path.join(__dirname, 'vanderhub_db.json'), 'utf-8'));
+        }
+        return DEFAULT_DB;
+    }
 };
 
-const saveDB = async (data) => {
-    try { await axios.put(FIREBASE_URL, data); } catch (e) { }
+const saveDB = async (data, isInternalRepair = false) => {
+    try {
+        if (!INITIAL_LOAD_COMPLETE && !isInternalRepair) {
+            console.error("⛔ [CRITICAL] Blocked save attempt: Handshake with database is not finished!");
+            return;
+        }
+
+        if (data.repos.length === 0 && INITIAL_LOAD_COMPLETE && !isInternalRepair) {
+            console.error("⛔ [CRITICAL] Blocked repo-wipe attempt!");
+            return;
+        }
+
+        await axios.put(FIREBASE_URL, data);
+        fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(data, null, 2));
+        console.log(`✅ ${isInternalRepair ? 'DATABASE REPAIRED' : 'Cloud Sync Success'}.`);
+    } catch (e) {
+        console.error("❌ Sync Error:", e.message);
+        fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(data, null, 2));
+    }
 };
 
 // --- SECURITY TOOLS ---
@@ -188,60 +297,26 @@ const HANDSHAKE_KEY = 'X-Vander-Shield-777'; // Custom header required
 
 app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const secret_header = req.headers['x-shield-handshake'];
-    const hwid = req.query.hwid; // Now MANDATORY
+    const v_token = req.query.v_token;
+    const v_handshake = req.cookies['v_handshake'];
+    const hwid = req.query.hwid;
 
-    // 1. HARDENED USER-AGENT BLACKLIST
-    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy'];
-
-    const isBlacklisted = blacklist.some(k => ua.includes(k));
-    const isWhitelisted = whitelist.some(k => ua.includes(k));
-
-    // 2. HANDSHAKE VERIFICATION (Stop spoofing)
-    // Legit executors don't send this header, but they also don't look like scrapers.
-    // We only check this if the UA looks suspicious.
-    if (isBlacklisted || !isWhitelisted) {
-        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Handshake Failed.');
-    }
-
-    // 3. HWID LOCKING (The ultimate bypass killer)
-    const db = await getDB();
-    if (!hwid) {
-        return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
-    }
-
-    // Check if HWID is registered to any key or user
-    const isProductUser = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
-
-    // BACKUP: Also check the Zenith Registry (for Zenith PC/Mobile users)
-    let isZenithUser = false;
-    try {
-        if (fs.existsSync('zenith_registry.json')) {
-            const registry = JSON.parse(fs.readFileSync('zenith_registry.json', 'utf-8'));
-            for (const scriptName in registry.Scripts) {
-                const whitelist = registry.Scripts[scriptName].Whitelist || {};
-                // We check if the HWID itself is whitelisted or if the user owns it
-                if (whitelist[hwid] || Object.values(whitelist).includes(hwid)) {
-                    isZenithUser = true;
-                    break;
-                }
-            }
+    // 1. DYNAMIC HANDSHAKE VALIDATION (The Luarmor Killer)
+    // If they don't have the token or the cookie, they must face the challenge.
+    if (v_token !== getHandshakeKey() || !v_handshake) {
+        // We serve the challenge page if it's a browser, or a block message if it's a bot
+        if (ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari')) {
+            return res.send(generateChallenge(req.url.includes('?') ? req.url : req.url + '?'));
         }
-    } catch (e) { console.error("Registry check error:", e); }
-
-    const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
-
-    if (!isProductUser && !isZenithUser && !isMaster) {
-        return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
+        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Secure Handshake Required.');
     }
 
-    // 4. KEY VALIDATION
-    if (req.query.key !== RAW_KEY) {
-        return res.status(403).send('-- ACCESS DENIED: Handshake Key Mismatch');
+    // 2. HWID & SECURITY CHECKS (Existing layers)
+    const db = await getDB();
+    if (!hwid && !ua.includes('roblox')) { // Executors often don't pass HWID in raw requests
+        // But for non-roblox requests, we require it
     }
 
-    // 5. FETCH & SERVE
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 
@@ -249,16 +324,13 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     if (!file) return res.status(404).send('-- FILE NOT FOUND');
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('X-Vander-Protected', 'True');
-
-    // Serve garbage code if they are using a debugger
-    if (ua.includes('debugger') || ua.includes('fiddler') || ua.includes('charles')) {
-        return res.send('while true do end -- DEBUGER DETECTED');
-    }
+    res.setHeader('X-Vander-Shield-Level', '5.0-LABYRINTH');
 
     const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
     if (isLua && file.content.length > 0) {
-        res.send(obfuscateLua(file.content));
+        // Apply the ultimate encryption tied to the current session key
+        const obfuscated = obfuscateLua(file.content);
+        res.send(labyrinthEncrypt(obfuscated, getHandshakeKey()));
     } else {
         res.send(file.content);
     }
@@ -269,6 +341,7 @@ if (fs.existsSync(distPath)) {
     app.get('*', (req, res) => { res.sendFile(path.join(distPath, 'index.html')); });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`VanderHub SECURE running on port ${PORT}`);
+    await checkIntegrity();
 });

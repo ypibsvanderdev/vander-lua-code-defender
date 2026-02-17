@@ -277,17 +277,12 @@ function App() {
 
                     {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
 
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '12px' }} onClick={handleVerifyKey}>
+                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '20px' }} onClick={handleVerifyKey}>
                         Verify Access
                     </button>
 
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', marginBottom: '20px' }}
-                        onClick={() => { setAccessKey('VANDER-TRIAL-GUEST'); handleVerifyKey(); }}>
-                        Claim 30-Day Free Trial
-                    </button>
-
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Don't have a key? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Get access here</a>
+                        Don't have a key? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Purchase a key here</a>
                     </p>
                 </motion.div>
             </div>
