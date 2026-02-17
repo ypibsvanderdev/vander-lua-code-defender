@@ -114,22 +114,36 @@ function App() {
         setView('login');
     };
 
-    const handleVerifyKey = async () => {
-        if (!accessKey.trim()) return setAuthError('Please enter a key');
+    const handleVerifyKey = async (overrideKey = null) => {
+        const keyToVerify = overrideKey || accessKey.trim();
+        if (!keyToVerify) return setAuthError('Please enter a key');
+        setAuthError('');
         try {
             const r = await fetch(`${API}/verify-key`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: accessKey.trim(), hwid: navigator.userAgent }) // Simple HWID simulation
+                body: JSON.stringify({ key: keyToVerify, hwid: navigator.userAgent })
             });
             const d = await r.json();
             if (d.success) {
                 setIsKeyVerified(true);
                 localStorage.setItem('vander_key_verified', 'true');
+                localStorage.setItem('vander_access_key', keyToVerify);
                 setAuthError('');
-            } else { setAuthError(d.error); }
+            } else {
+                setAuthError(d.error);
+                setIsKeyVerified(false);
+                localStorage.removeItem('vander_key_verified');
+            }
         } catch (e) { setAuthError('Connection failed'); }
     };
+
+    useEffect(() => {
+        const savedKey = localStorage.getItem('vander_access_key');
+        if (savedKey && !isKeyVerified) {
+            handleVerifyKey(savedKey);
+        }
+    }, []);
 
     const handleClaimTrial = async () => {
         setTrialClaiming(true);
@@ -143,10 +157,13 @@ function App() {
             const d = await r.json();
             if (d.success && d.key) {
                 setAccessKey(d.key);
+                setTrialKey(d.key); // Important for the success message!
                 try { await navigator.clipboard.writeText(d.key); } catch (e) { }
+
                 // Auto-verify immediately — no extra clicks
                 setIsKeyVerified(true);
                 localStorage.setItem('vander_key_verified', 'true');
+                localStorage.setItem('vander_access_key', d.key); // Store it for re-loads
                 setAuthError('');
             } else { setAuthError(d.error || 'Failed to claim trial'); }
         } catch (e) { setAuthError('Connection failed'); }

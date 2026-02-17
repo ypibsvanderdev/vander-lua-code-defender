@@ -183,19 +183,40 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/verify-key', async (req, res) => {
     const { key, hwid } = req.body;
+    if (!key) return res.status(400).json({ error: 'Key required' });
+
     const db = await getDB();
     const keyData = db.keys.find(k => k.id === key);
-    if (keyData && !keyData.used) {
+
+    if (!keyData) return res.status(401).json({ error: 'Invalid key' });
+
+    // Case 1: Key is new / unused
+    if (!keyData.used) {
         keyData.used = true;
         keyData.hwid = hwid;
         if (keyData.type === 'trial') {
             const expiry = new Date();
             expiry.setDate(expiry.getDate() + 30);
             keyData.expiresAt = expiry.toISOString();
+            keyData.createdAt = new Date().toISOString();
         }
         await saveDB(db);
-        res.json({ success: true, expiresAt: keyData.expiresAt });
-    } else res.status(401).json({ error: 'Invalid or already used key' });
+        return res.json({ success: true, expiresAt: keyData.expiresAt, type: keyData.type });
+    }
+
+    // Case 2: Key is already used, check HWID match
+    if (keyData.hwid === hwid) {
+        // If it has expiry, check it
+        if (keyData.expiresAt) {
+            const expiryDate = new Date(keyData.expiresAt);
+            if (expiryDate < new Date()) {
+                return res.status(403).json({ error: 'Wait! Your access has expired. Purchase a new key to continue.' });
+            }
+        }
+        return res.json({ success: true, expiresAt: keyData.expiresAt, type: keyData.type });
+    }
+
+    res.status(401).json({ error: 'This key is already linked to another device.' });
 });
 
 // ONE-TIME FREE TRIAL (1 per HWID)
@@ -208,11 +229,21 @@ app.post('/api/claim-trial', async (req, res) => {
     const db = await getDB();
     db.keys = db.keys || [];
 
-    // Check if this HWID already claimed a REAL trial (ignore old legacy keys like VANDER-TRIAL-GUEST)
+    // Check if this HWID already claimed a trial (must have createdAt to be "real")
     const existingTrial = db.keys.find(k => k.type === 'trial' && k.hwid === hwid && k.createdAt);
+
     if (existingTrial) {
-        console.log(`[TRIAL] Denied for HWID ${hwid}: Already claimed.`);
-        return res.status(403).json({ error: 'Trial already claimed on this device. Purchase a key for continued access.' });
+        console.log(`[TRIAL] Returning existing key for HWID ${hwid}: ${existingTrial.id}`);
+        const expiryDate = new Date(existingTrial.expiresAt);
+        if (expiryDate < new Date()) {
+            return res.status(403).json({ error: 'Your 30-day trial has already ended. Access expired.' });
+        }
+        return res.json({
+            success: true,
+            key: existingTrial.id,
+            expiresAt: existingTrial.expiresAt,
+            message: 'Recovered your existing trial key.'
+        });
     }
 
     // Generate a trial key
@@ -223,16 +254,18 @@ app.post('/api/claim-trial', async (req, res) => {
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + 30);
 
-    db.keys.push({
+    const newKey = {
         id: trialKey,
         type: 'trial',
         used: true,
         hwid: hwid,
         createdAt: new Date().toISOString(),
         expiresAt: expiry.toISOString()
-    });
+    };
 
+    db.keys.push(newKey);
     await saveDB(db);
+
     console.log(`🎟️ [TRIAL] Successfully claimed: ${trialKey} for HWID: ${hwid}`);
     res.json({ success: true, key: trialKey, expiresAt: expiry.toISOString() });
 });
