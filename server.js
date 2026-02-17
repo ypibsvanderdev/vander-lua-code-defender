@@ -212,8 +212,8 @@ app.post('/api/claim-trial', async (req, res) => {
     const db = await getDB();
     db.keys = db.keys || [];
 
-    // Check if this HWID already claimed a trial
-    const existingTrial = db.keys.find(k => k.type === 'trial' && k.hwid === hwid);
+    // Check if this HWID already claimed a REAL trial (ignore old legacy keys like VANDER-TRIAL-GUEST)
+    const existingTrial = db.keys.find(k => k.type === 'trial' && k.hwid === hwid && k.createdAt);
     if (existingTrial) {
         return res.status(403).json({ error: 'Trial already claimed on this device. Purchase a key for continued access.' });
     }
@@ -329,30 +329,57 @@ function obfuscateLua(source) {
 
 // ==================== ULTIMATE PROTECTION LAYER ====================
 const RAW_KEY = 'vander2026';
-const HANDSHAKE_KEY = 'X-Vander-Shield-777'; // Custom header required
 
 app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const v_token = req.query.v_token;
-    const v_handshake = req.cookies['v_handshake'];
     const hwid = req.query.hwid;
 
-    // 1. DYNAMIC HANDSHAKE VALIDATION (The Luarmor Killer)
-    // If they don't have the token or the cookie, they must face the challenge.
-    if (v_token !== getHandshakeKey() || !v_handshake) {
-        // We serve the challenge page if it's a browser, or a block message if it's a bot
-        if (ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari')) {
-            return res.send(generateChallenge(req.url.includes('?') ? req.url : req.url + '?'));
-        }
-        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Secure Handshake Required.');
+    // 1. HARDENED USER-AGENT BLACKLIST (Blocks scrapers, bots, tools)
+    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless', 'phantomjs', 'selenium', 'puppeteer', 'playwright'];
+    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'synapse', 'krnl', 'script-ware', 'wave', 'electron'];
+
+    const isBlacklisted = blacklist.some(k => ua.includes(k));
+    const isWhitelisted = whitelist.some(k => ua.includes(k));
+
+    if (isBlacklisted || !isWhitelisted) {
+        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Handshake Failed.');
     }
 
-    // 2. HWID & SECURITY CHECKS (Existing layers)
+    // 2. DEBUGGER DETECTION (Serve garbage if using a proxy debugger)
+    if (ua.includes('debugger') || ua.includes('fiddler') || ua.includes('charles') || ua.includes('mitmproxy')) {
+        return res.send('while true do end -- DEBUGGER DETECTED');
+    }
+
+    // 3. HWID MANDATORY CHECK
+    if (!hwid) {
+        return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
+    }
+
+    // 4. KEY VALIDATION
+    if (req.query.key !== RAW_KEY) {
+        return res.status(403).send('-- ACCESS DENIED: Handshake Key Mismatch');
+    }
+
+    // 5. HWID AUTHORIZATION (Check if HWID is registered to any key or user)
     const db = await getDB();
-    if (!hwid && !ua.includes('roblox')) { // Executors often don't pass HWID in raw requests
-        // But for non-roblox requests, we require it
+    const isProductUser = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
+
+    // Master HWID bypass
+    const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
+
+    if (!isProductUser && !isMaster) {
+        return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
     }
 
+    // 6. CHECK KEY EXPIRY (For trial/monthly keys)
+    if (isProductUser && isProductUser.expiresAt) {
+        const expiryDate = new Date(isProductUser.expiresAt);
+        if (expiryDate < new Date()) {
+            return res.status(403).send('-- KEY EXPIRED: Purchase a new key at https://vander-key-store.onrender.com');
+        }
+    }
+
+    // 7. FETCH & SERVE
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 
@@ -360,11 +387,11 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     if (!file) return res.status(404).send('-- FILE NOT FOUND');
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('X-Vander-Shield-Level', '5.0-LABYRINTH');
+    res.setHeader('X-Vander-Shield-Level', '6.0-FORTRESS');
 
     const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
     if (isLua && file.content.length > 0) {
-        // Apply the ultimate encryption tied to the current session key
+        // Apply dual-layer encryption: obfuscation + labyrinth
         const obfuscated = obfuscateLua(file.content);
         res.send(labyrinthEncrypt(obfuscated, getHandshakeKey()));
     } else {
