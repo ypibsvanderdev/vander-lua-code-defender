@@ -89,6 +89,22 @@ const emergencySync = async (db) => {
 // INITIAL DATABASE
 const DEFAULT_DB = { users: [], repos: [], keys: [], notifications: 0 };
 
+const sanitizeDB = (db) => {
+    db.users = db.users || [];
+    db.keys = db.keys || [];
+    db.repos = (db.repos || []).map(r => ({
+        ...r,
+        files: r.files || [],
+        issues: r.issues || [],
+        commits: r.commits || [{ hash: 'init', msg: 'System Initialized', user: 'System', time: 'Just now' }],
+        stars: r.stars || 0,
+        forks: r.forks || 0,
+        desc: r.desc || 'No description provided.',
+        status: r.status || 'Private'
+    }));
+    return db;
+};
+
 const getDB = async () => {
     try {
         const res = await axios.get(FIREBASE_URL);
@@ -103,16 +119,13 @@ const getDB = async () => {
             if (localData && localData.repos && localData.repos.length > 0) {
                 console.warn("🛡️ [GUARD] Firebase empty/null. Recovering from Local Backup...");
                 INITIAL_LOAD_COMPLETE = true;
-                return localData;
+                return sanitizeDB(localData);
             }
         }
 
-        if (!cloudData) return DEFAULT_DB;
+        if (!cloudData) return sanitizeDB(DEFAULT_DB);
 
-        const db = cloudData;
-        db.users = db.users || [];
-        db.repos = db.repos || [];
-        db.keys = db.keys || [];
+        const db = sanitizeDB(cloudData);
 
         if (db.repos.length > 0) {
             fs.writeFileSync(path.join(__dirname, 'vanderhub_db.json'), JSON.stringify(db, null, 2));
@@ -124,9 +137,10 @@ const getDB = async () => {
         console.error("❌ Firebase Fetch Error:", e.message);
         if (fs.existsSync(path.join(__dirname, 'vanderhub_db.json'))) {
             INITIAL_LOAD_COMPLETE = true;
-            return JSON.parse(fs.readFileSync(path.join(__dirname, 'vanderhub_db.json'), 'utf-8'));
+            const local = JSON.parse(fs.readFileSync(path.join(__dirname, 'vanderhub_db.json'), 'utf-8'));
+            return sanitizeDB(local);
         }
-        return DEFAULT_DB;
+        return sanitizeDB(DEFAULT_DB);
     }
 };
 

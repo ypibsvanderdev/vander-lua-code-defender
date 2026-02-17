@@ -744,7 +744,7 @@ function App() {
                                         <span style={{ color: 'var(--text-secondary)' }}>{selectedRepo.commits?.[0]?.msg || 'Initial upload'}</span>
                                         <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits?.[0]?.hash || 'HEAD'} · {selectedRepo.commits?.[0]?.time || 'Just now'}</span>
                                     </div>
-                                    {selectedRepo.files.map(f => (
+                                    {(selectedRepo.files || []).map(f => (
                                         <div key={f.name} className="nav-item" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '14px' }}
                                             onClick={() => { if (f.type === 'file') { setViewingFile(f); setEditContent(f.content); setEditingFile(false); } }}>
                                             {f.type === 'folder' ? <Layers size={18} color="#7d8590" /> : <File size={18} color="#7d8590" />}
@@ -840,25 +840,29 @@ function App() {
                                     />
                                     <button className="btn-primary btn" onClick={createIssue} disabled={!newIssueTitle.trim()}>New Issue</button>
                                 </div>
-                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
                                     <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderBottom: '1px solid var(--border-color)', fontWeight: 600 }}>
-                                        <CircleDot size={16} color="#3fb950" style={{ verticalAlign: 'middle', marginRight: '8px' }} /> {selectedRepo.issues.filter(i => i.status === 'Open').length} Open
+                                        <CircleDot size={16} color="#3fb950" style={{ verticalAlign: 'middle', marginRight: '8px' }} /> {(selectedRepo.issues || []).filter(i => i.status === 'Open').length} Open
                                     </div>
-                                    {selectedRepo.issues.length === 0 && (
+                                    {(selectedRepo.issues || []).length === 0 && (
                                         <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                             <AlertCircle size={48} style={{ opacity: .15, marginBottom: '12px' }} />
                                             <p>No issues yet. Type a title above and click "New Issue".</p>
                                         </div>
                                     )}
-                                    {selectedRepo.issues.map(issue => (
-                                        <div key={issue.id} className="nav-item" style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '12px' }}>
-                                            <CircleDot size={16} color="#3fb950" />
-                                            <div>
-                                                <div style={{ fontWeight: 600 }}>{issue.title}</div>
-                                                <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>#{issue.id} opened {issue.time} by {issue.author}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {(selectedRepo.issues || []).map((issue, i) => (
+                                            <div key={i} className="nav-item" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '12px', alignItems: 'flex-start' }}>
+                                                <CircleDot size={18} color="#3fb950" style={{ marginTop: '2px' }} />
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: '15px' }}>{issue.title}</div>
+                                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
+                                                        #{i + 1} opened recently by {issue.author}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -868,7 +872,7 @@ function App() {
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                     <div style={{ display: 'flex', gap: '12px' }}>
-                                        <button className="btn" style={{ background: activeTab === 'pulls' ? 'rgba(47,129,247,0.1)' : '' }}><GitPullRequest size={14} color="#3fb950" /> 0 Open</button>
+                                        <button className="btn" style={{ background: 'rgba(47,129,247,0.1)' }}><GitPullRequest size={14} color="#3fb950" /> 0 Open</button>
                                         <button className="btn"><Check size={14} /> 0 Closed</button>
                                     </div>
                                     <button className="btn-primary btn">New pull request</button>
@@ -951,8 +955,6 @@ function App() {
                         {activeTab === 'settings' && (
                             <div>
                                 <h3 style={{ margin: '0 0 24px' }}><Settings size={20} style={{ verticalAlign: 'middle', marginRight: '8px' }} />General</h3>
-
-                                {/* Repo Name */}
                                 <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
                                     <label className="form-label">Repository name</label>
                                     <div style={{ display: 'flex', gap: '12px' }}>
@@ -960,8 +962,6 @@ function App() {
                                         <button className="btn">Rename</button>
                                     </div>
                                 </div>
-
-                                {/* Description */}
                                 <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
                                     <label className="form-label">Description</label>
                                     <div style={{ display: 'flex', gap: '12px' }}>
@@ -969,45 +969,17 @@ function App() {
                                         <button className="btn">Save</button>
                                     </div>
                                 </div>
-
-                                {/* Visibility */}
-                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
-                                    <label className="form-label">Visibility</label>
-                                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-                                        This repository is currently <b style={{ color: selectedRepo.status === 'Private' ? '#f0883e' : '#3fb950' }}>{selectedRepo.status}</b>.
-                                    </p>
-                                    <button className="btn" style={{ borderColor: '#f0883e', color: '#f0883e' }}>
-                                        {selectedRepo.status === 'Private' ? <><Eye size={14} /> Change to Public</> : <><Lock size={14} /> Change to Private</>}
-                                    </button>
-                                </div>
-
-                                {/* Default Branch */}
-                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
-                                    <label className="form-label">Default branch</label>
-                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                        <button className="btn"><GitBranch size={14} /> main</button>
-                                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>The default branch is considered the base branch of your repository.</span>
-                                    </div>
-                                </div>
-
-                                {/* Danger Zone */}
                                 <div style={{ border: '1px solid #da3633', borderRadius: '8px', overflow: 'hidden', marginTop: '32px' }}>
                                     <div style={{ background: 'rgba(218,54,51,0.1)', padding: '14px 20px', borderBottom: '1px solid #da3633', fontWeight: 700, color: '#f85149' }}>
                                         Danger Zone
                                     </div>
-                                    {[
-                                        { label: 'Transfer ownership', desc: 'Transfer this repository to another user or organization.', btn: 'Transfer' },
-                                        { label: 'Archive this repository', desc: 'Mark this repository as archived and read-only.', btn: 'Archive' },
-                                        { label: 'Delete this repository', desc: 'Once deleted, there is no going back. Please be certain.', btn: 'Delete', action: () => deleteRepo(selectedRepo.id) }
-                                    ].map((item, i) => (
-                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < 2 ? '1px solid #da3633' : 'none', gap: '16px' }}>
-                                            <div>
-                                                <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.label}</div>
-                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{item.desc}</div>
-                                            </div>
-                                            <button className="btn" style={{ borderColor: '#da3633', color: '#f85149', flexShrink: 0 }} onClick={item.action}>{item.btn}</button>
+                                    <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 600 }}>Delete this repository</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Once deleted, there is no going back.</div>
                                         </div>
-                                    ))}
+                                        <button className="btn" style={{ borderColor: '#da3633', color: '#f85149' }} onClick={() => deleteRepo(selectedRepo.id)}>Delete repository</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1019,7 +991,7 @@ function App() {
                 )}
             </AnimatePresence>
 
-            {/* ========== NEW REPO MODAL ========== */}
+            {/* ========== MODALS & TOOLS ========== */}
             <AnimatePresence>
                 {showNewRepo && (
                     <div className="modal-overlay" onClick={() => setShowNewRepo(false)}>
@@ -1039,7 +1011,7 @@ function App() {
                                 </div>
                                 <div className="radio-option" onClick={() => setNewPrivate(true)}>
                                     <div className={`radio-dot ${newPrivate ? 'active' : ''}`}></div>
-                                    <div><div style={{ fontWeight: 600 }}>Private (Default)</div><div className="radio-desc">You choose who can see this repo.</div></div>
+                                    <div><div style={{ fontWeight: 600 }}>Private (Default)</div><div className="radio-desc">Controlled access enabled.</div></div>
                                 </div>
                             </div>
                             <button className="btn-primary btn" style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '24px' }} onClick={createRepo} disabled={!newName.trim()}>
@@ -1050,22 +1022,21 @@ function App() {
                 )}
             </AnimatePresence>
 
-            {/* ========== ADD FILE MODAL ========== */}
             <AnimatePresence>
                 {showAddFile && (
                     <div className="modal-overlay" onClick={() => setShowAddFile(false)}>
-                        <motion.div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }} initial={{ scale: .92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: .92, opacity: 0 }}>
+                        <motion.div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '750px' }} initial={{ scale: .92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: .92, opacity: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                                 <h2 style={{ margin: 0 }}>Add file to {selectedRepo?.name}</h2>
                                 <X size={24} style={{ cursor: 'pointer' }} onClick={() => setShowAddFile(false)} />
                             </div>
                             <label className="form-label">File name (with extension) *</label>
-                            <input type="text" className="search-box form-input" placeholder="my_script.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
+                            <input type="text" className="search-box form-input" placeholder="main.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
                             <label className="form-label" style={{ marginTop: '16px' }}>File content</label>
                             <textarea
                                 className="search-box form-input"
-                                style={{ height: '300px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', resize: 'vertical' }}
-                                placeholder="Paste your script or code here..."
+                                style={{ height: '350px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', resize: 'vertical' }}
+                                placeholder="Paste your code here..."
                                 value={fileContent}
                                 onChange={e => setFileContent(e.target.value)}
                             />
@@ -1077,27 +1048,21 @@ function App() {
                 )}
             </AnimatePresence>
 
-            {/* ========== TOAST ========== */}
             <AnimatePresence>
                 {copied && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 50 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 50 }}
-                        style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', background: '#238636', color: '#fff', padding: '12px 24px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 9999 }}
-                    >
+                    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
+                        style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', background: '#238636', color: '#fff', padding: '12px 24px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 9999 }}>
                         <Check size={18} /> Copied to clipboard!
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* ========== FOOTER ========== */}
             <footer style={{ marginTop: 'auto', padding: '48px', borderTop: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
                 <Github size={24} style={{ marginBottom: '20px', opacity: 0.3 }} />
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '16px' }}>
-                    <span style={{ cursor: 'pointer' }}>Terms</span><span style={{ cursor: 'pointer' }}>Privacy</span><span style={{ cursor: 'pointer' }}>Docs</span><span style={{ cursor: 'pointer' }}>Contact</span>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '16px' }}>
+                    <span>Terms</span><span>Privacy</span><span>Docs</span><span>Contact VanderHub</span>
                 </div>
-                © 2026 VanderHub, Inc.
+                © 2026 VanderHub, Inc. Absolute Security Guaranteed.
             </footer>
         </div>
     );
