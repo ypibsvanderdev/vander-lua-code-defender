@@ -27,6 +27,7 @@ function App() {
     const [loginPassword, setLoginPassword] = useState('');
     const [authError, setAuthError] = useState('');
     const [trialClaiming, setTrialClaiming] = useState(false);
+    const [trialKey, setTrialKey] = useState(null);
 
     // Modals
     const [showNewRepo, setShowNewRepo] = useState(false);
@@ -140,11 +141,15 @@ function App() {
                 body: JSON.stringify({ hwid: navigator.userAgent })
             });
             const d = await r.json();
-            if (d.success) {
-                setIsKeyVerified(true);
-                localStorage.setItem('vander_key_verified', 'true');
+            if (d.success && d.key) {
+                // Put the key in the input field
+                setAccessKey(d.key);
+                // Copy to clipboard
+                try { await navigator.clipboard.writeText(d.key); } catch (e) { }
                 setAuthError('');
-            } else { setAuthError(d.error); }
+                // Show success message as a green "error" (we'll style it)
+                setTrialKey(d.key);
+            } else { setAuthError(d.error || 'Failed to claim trial'); }
         } catch (e) { setAuthError('Connection failed'); }
         setTrialClaiming(false);
     };
@@ -296,6 +301,12 @@ function App() {
                     </div>
 
                     {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
+
+                    {trialKey && <div style={{ color: '#10b981', fontSize: '12px', marginBottom: '16px', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px' }}>
+                        ✅ Trial key generated & copied to clipboard!<br />
+                        <span style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 700, letterSpacing: '1px' }}>{trialKey}</span><br />
+                        <span style={{ opacity: 0.7 }}>Click "Verify Access" below to activate.</span>
+                    </div>}
 
                     <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '12px' }} onClick={handleVerifyKey}>
                         Verify Access
