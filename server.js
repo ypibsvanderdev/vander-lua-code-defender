@@ -624,55 +624,12 @@ function vanderArmor(source, hwid) {
 const RAW_KEY = 'vander2026';
 
 app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
-    const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const hwid = req.query.hwid;
-
-    // 1. HARDENED USER-AGENT BLACKLIST (Blocks scrapers, bots, tools)
-    const blacklist = ['discord', 'python', 'axios', 'fetch', 'curl', 'wget', 'postman', 'golang', 'libcurl', 'scraper', 'spider', 'bot', 'headless', 'phantomjs', 'selenium', 'puppeteer', 'playwright'];
-    const whitelist = ['roblox', 'delta', 'fluxus', 'codex', 'arceus', 'hydrogen', 'vegax', 'android', 'iphone', 'ipad', 'cfnetwork', 'robloxproxy', 'synapse', 'krnl', 'script-ware', 'wave', 'electron'];
-
-    const isBlacklisted = blacklist.some(k => ua.includes(k));
-    const isWhitelisted = whitelist.some(k => ua.includes(k));
-
-    if (isBlacklisted || !isWhitelisted) {
-        return res.status(403).send(ACCESS_DENIED_HTML);
-    }
-
-    // 2. DEBUGGER DETECTION (Serve garbage if using a proxy debugger)
-    if (ua.includes('debugger') || ua.includes('fiddler') || ua.includes('charles') || ua.includes('mitmproxy')) {
-        return res.send('while true do end -- DEBUGGER DETECTED');
-    }
-
-    // 3. HWID MANDATORY CHECK
-    if (!hwid) {
-        return res.status(401).send(ACCESS_DENIED_HTML);
-    }
-
-    // 4. KEY VALIDATION
+    // 1. KEY VALIDATION
     if (req.query.key !== RAW_KEY) {
         return res.status(403).send(ACCESS_DENIED_HTML);
     }
 
-    // 5. HWID AUTHORIZATION (Check if HWID is registered to any key or user)
     const db = await getDB();
-    const isProductUser = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
-
-    // Master HWID bypass
-    const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
-
-    if (!isProductUser && !isMaster) {
-        return res.status(403).send(ACCESS_DENIED_HTML);
-    }
-
-    // 6. CHECK KEY EXPIRY (For trial/monthly keys)
-    if (isProductUser && isProductUser.expiresAt) {
-        const expiryDate = new Date(isProductUser.expiresAt);
-        if (expiryDate < new Date()) {
-            return res.status(403).send(ACCESS_DENIED_HTML);
-        }
-    }
-
-    // 7. FETCH & SERVE
     const repo = db.repos.find(r => r.id === req.params.repoId);
     if (!repo) return res.status(404).send('-- REPO NOT FOUND');
 
@@ -681,15 +638,7 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('X-Vander-Shield-Level', '6.0-FORTRESS');
-
-    const isLua = req.params.filename.toLowerCase().endsWith('.lua') || !req.params.filename.includes('.');
-    if (isLua && file.content.length > 0) {
-        // Apply VANDER-ARMOR v5.0 (THE GHOST VM)
-        const armored = vanderArmorVM(file.content, hwid);
-        res.send(labyrinthEncrypt(armored, getHandshakeKey()));
-    } else {
-        res.send(file.content);
-    }
+    res.send(file.content);
 });
 
 // Serve frontend

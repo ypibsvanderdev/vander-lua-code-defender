@@ -294,8 +294,8 @@ function App() {
 
     const copyLoadstring = (repoId, fname) => {
         const fullURL = `${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026`;
-        const loader = `-- [[ VANDERHUB SECURE LOADER ]] --\n_G.VHub_Key = "vander2026"\nloadstring(game:HttpGet("${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=".._G.VHub_Key.."&hwid="..game:GetService("RbxAnalyticsService"):GetClientId()))()`;
-        navigator.clipboard.writeText(loader);
+        const url = `loadstring(game:HttpGet("${fullURL}"))()`;
+        navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -1065,22 +1065,7 @@ function App() {
                                 <X size={24} style={{ cursor: 'pointer' }} onClick={() => setShowAddFile(false)} />
                             </div>
 
-                            <div style={{ padding: '16px', background: 'rgba(47, 129, 247, 0.05)', border: '1px dashed rgba(47, 129, 247, 0.3)', borderRadius: '8px', marginBottom: '20px' }}>
-                                <label className="form-label" style={{ color: 'var(--accent-color)' }}>Quick Import (GitHub / Pastebin / Gist)</label>
-                                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                                    <input
-                                        type="text"
-                                        className="search-box form-input"
-                                        style={{ flex: 1, margin: 0 }}
-                                        placeholder="https://raw.githubusercontent.com/..."
-                                        value={importUrl}
-                                        onChange={e => setImportUrl(e.target.value)}
-                                    />
-                                    <button className="btn" onClick={importFromUrl} disabled={isImporting}>
-                                        {isImporting ? 'Fetching...' : 'V-Pull'}
-                                    </button>
-                                </div>
-                            </div>
+
 
                             <label className="form-label">Protocol Name (e.g. main.lua) *</label>
                             <input type="text" className="search-box form-input" placeholder="my_script.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
