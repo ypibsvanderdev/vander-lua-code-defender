@@ -379,34 +379,42 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
 
     // 3. HWID LOCKING (The ultimate bypass killer)
     const db = await getDB();
+    /* 
+    // Commented out to match live site loader logic where HWID is not mandatory for initial fetch
     if (!hwid) {
         return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
     }
+    */
 
-    // Check if HWID is registered to any key or user
-    const isProductUser = db.keys.find(k => k.hwid === hwid) || db.users.find(u => u.hwid === hwid);
+    // Check if HWID is registered (if provided)
+    const isProductUser = hwid ? (db.keys?.find(k => k.hwid === hwid) || db.users?.find(u => u.hwid === hwid)) : false;
 
     // BACKUP: Also check the Zenith Registry (for Zenith PC/Mobile users)
     let isZenithUser = false;
-    try {
-        if (fs.existsSync('zenith_registry.json')) {
-            const registry = JSON.parse(fs.readFileSync('zenith_registry.json', 'utf-8'));
-            for (const scriptName in registry.Scripts) {
-                const whitelist = registry.Scripts[scriptName].Whitelist || {};
-                // We check if the HWID itself is whitelisted or if the user owns it
-                if (whitelist[hwid] || Object.values(whitelist).includes(hwid)) {
-                    isZenithUser = true;
-                    break;
+    if (hwid) {
+        try {
+            if (fs.existsSync('zenith_registry.json')) {
+                const registry = JSON.parse(fs.readFileSync('zenith_registry.json', 'utf-8'));
+                for (const scriptName in registry.Scripts) {
+                    const whitelist = registry.Scripts[scriptName].Whitelist || {};
+                    if (whitelist[hwid] || Object.values(whitelist).includes(hwid)) {
+                        isZenithUser = true;
+                        break;
+                    }
                 }
             }
-        }
-    } catch (e) { console.error("Registry check error:", e); }
+        } catch (e) { console.error("Registry check error:", e); }
+    }
 
     const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
 
-    if (!isProductUser && !isZenithUser && !isMaster) {
+    /* 
+    // Match live site: Only kick if User-Agent is explicitly suspicious (already handled above)
+    // HWID authorization is optional for the 'raw' fetch to allow standard loaders.
+    if (hwid && !isProductUser && !isZenithUser && !isMaster) {
         return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
     }
+    */
 
     // 4. KEY VALIDATION
     if (req.query.key !== RAW_KEY) {
