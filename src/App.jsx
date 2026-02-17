@@ -140,7 +140,7 @@ function App() {
 
     useEffect(() => {
         const savedKey = localStorage.getItem('vander_access_key');
-        if (savedKey && !isKeyVerified) {
+        if (savedKey) {
             handleVerifyKey(savedKey);
         }
     }, []);
