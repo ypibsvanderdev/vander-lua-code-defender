@@ -142,13 +142,12 @@ function App() {
             });
             const d = await r.json();
             if (d.success && d.key) {
-                // Put the key in the input field
                 setAccessKey(d.key);
-                // Copy to clipboard
                 try { await navigator.clipboard.writeText(d.key); } catch (e) { }
+                // Auto-verify immediately — no extra clicks
+                setIsKeyVerified(true);
+                localStorage.setItem('vander_key_verified', 'true');
                 setAuthError('');
-                // Show success message as a green "error" (we'll style it)
-                setTrialKey(d.key);
             } else { setAuthError(d.error || 'Failed to claim trial'); }
         } catch (e) { setAuthError('Connection failed'); }
         setTrialClaiming(false);
