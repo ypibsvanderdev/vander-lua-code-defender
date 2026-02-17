@@ -15,6 +15,62 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// ==================== PREMIUM UI TEMPLATES ====================
+const ACCESS_DENIED_HTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VANDERHUB | ACCESS DENIED</title>
+    <style>
+        body {
+            background-color: #0b0e14;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        .denied-box {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        .shield-icon {
+            width: 32px;
+            height: 32px;
+            fill: #58a6ff;
+            filter: drop-shadow(0 0 10px rgba(88, 166, 255, 0.4));
+        }
+        .text {
+            color: #ff4d4d;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 0 15px rgba(255, 77, 77, 0.2);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="denied-box">
+        <svg class="shield-icon" viewBox="0 0 24 24">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <div class="text">VANDERHUB: ACCESS DENIED</div>
+    </div>
+</body>
+</html>
+`;
+
 // FIREBASE CONFIGURATION
 const FIREBASE_URL = 'https://vanderhub-default-rtdb.firebaseio.com/.json';
 
@@ -505,7 +561,7 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const isWhitelisted = whitelist.some(k => ua.includes(k));
 
     if (isBlacklisted || !isWhitelisted) {
-        return res.status(403).send('-- UNTRUSTED ENVIRONMENT: Handshake Failed.');
+        return res.status(403).send(ACCESS_DENIED_HTML);
     }
 
     // 2. DEBUGGER DETECTION (Serve garbage if using a proxy debugger)
@@ -520,7 +576,7 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
 
     // 4. KEY VALIDATION
     if (req.query.key !== RAW_KEY) {
-        return res.status(403).send('-- ACCESS DENIED: Handshake Key Mismatch');
+        return res.status(403).send(ACCESS_DENIED_HTML);
     }
 
     // 5. HWID AUTHORIZATION (Check if HWID is registered to any key or user)
@@ -531,14 +587,14 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
     const isMaster = hwid === 'yahia-master-pc' || hwid === 'vander-dev-666' || hwid === 'ypibs27';
 
     if (!isProductUser && !isMaster) {
-        return res.status(403).send('-- UNAUTHORIZED DEVICE: Access Revoked.');
+        return res.status(403).send(ACCESS_DENIED_HTML);
     }
 
     // 6. CHECK KEY EXPIRY (For trial/monthly keys)
     if (isProductUser && isProductUser.expiresAt) {
         const expiryDate = new Date(isProductUser.expiresAt);
         if (expiryDate < new Date()) {
-            return res.status(403).send('-- KEY EXPIRED: Purchase a new key at https://vander-key-store.onrender.com');
+            return res.status(403).send(ACCESS_DENIED_HTML);
         }
     }
 
