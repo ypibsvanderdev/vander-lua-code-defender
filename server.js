@@ -56,7 +56,17 @@ const emergencySync = async (db) => {
             const content = fs.readFileSync(fullPath, 'utf-8');
             let repo = db.repos.find(r => r.id === s.id);
             if (!repo) {
-                repo = { id: s.id, name: s.id, files: [], owner: 'yahia', status: 'Private' };
+                repo = {
+                    id: s.id,
+                    name: s.id,
+                    files: [],
+                    owner: 'yahia',
+                    status: 'Private',
+                    desc: 'Restored from emergency backup',
+                    issues: [],
+                    commits: [{ hash: 'init-sync', msg: 'System Restore', user: 'System', time: 'Just now' }],
+                    lang: 'Lua', stars: 0, forks: 0
+                };
                 db.repos.push(repo);
             }
             if (!repo.files.find(f => f.name === s.name)) {

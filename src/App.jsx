@@ -714,7 +714,7 @@ function App() {
                         <div style={{ display: 'flex', gap: '24px', borderBottom: '1px solid var(--border-color)', marginBottom: '24px', overflowX: 'auto' }}>
                             {[
                                 { id: 'code', icon: <Code2 size={16} />, label: 'Code' },
-                                { id: 'issues', icon: <CircleDot size={16} />, label: `Issues (${selectedRepo.issues.length})` },
+                                { id: 'issues', icon: <CircleDot size={16} />, label: `Issues (${selectedRepo.issues?.length || 0})` },
                                 { id: 'pulls', icon: <GitPullRequest size={16} />, label: 'Pull Requests' },
                                 { id: 'actions', icon: <PlayCircle size={16} />, label: 'Actions' },
                                 { id: 'security', icon: <ShieldCheck size={16} />, label: 'Security' },
@@ -741,15 +741,15 @@ function App() {
                                     <div style={{ background: 'var(--bg-secondary)', padding: '14px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px' }}>
                                         <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(45deg, #2f81f7, #00ffff)' }}></div>
                                         <b>{selectedRepo.owner}</b>
-                                        <span style={{ color: 'var(--text-secondary)' }}>{selectedRepo.commits[0]?.msg}</span>
-                                        <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits[0]?.hash} · {selectedRepo.commits[0]?.time}</span>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{selectedRepo.commits?.[0]?.msg || 'Initial upload'}</span>
+                                        <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits?.[0]?.hash || 'HEAD'} · {selectedRepo.commits?.[0]?.time || 'Just now'}</span>
                                     </div>
                                     {selectedRepo.files.map(f => (
                                         <div key={f.name} className="nav-item" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '14px' }}
                                             onClick={() => { if (f.type === 'file') { setViewingFile(f); setEditContent(f.content); setEditingFile(false); } }}>
                                             {f.type === 'folder' ? <Layers size={18} color="#7d8590" /> : <File size={18} color="#7d8590" />}
                                             <span style={{ flex: 1 }}>{f.name}</span>
-                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits[0]?.msg}</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits?.[0]?.msg || 'Uploaded'}</span>
                                         </div>
                                     ))}
                                 </div>
