@@ -38,7 +38,7 @@ async function syncAll() {
             if (content) {
                 let repo = db.repos.find(r => r.id === f.id);
                 if (!repo) {
-                    repo = { id: f.id, name: f.id, files: [], owner: 'yahia', status: 'Private' };
+                    repo = { id: f.id, name: f.id, files: [], owner: 'meqda', status: 'Private' };
                     db.repos.push(repo);
                 }
 
