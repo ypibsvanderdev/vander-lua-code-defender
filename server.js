@@ -571,7 +571,7 @@ app.get('/raw/:repoId/:filename', limiter, async (req, res) => {
 
     // 3. HWID MANDATORY CHECK
     if (!hwid) {
-        return res.status(401).send('-- SECURITY BOOT: HWID Identification Required.');
+        return res.status(401).send(ACCESS_DENIED_HTML);
     }
 
     // 4. KEY VALIDATION

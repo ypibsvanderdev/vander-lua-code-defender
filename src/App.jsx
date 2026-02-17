@@ -48,6 +48,8 @@ function App() {
     // Add File
     const [fileName, setFileName] = useState('');
     const [fileContent, setFileContent] = useState('');
+    const [importUrl, setImportUrl] = useState('');
+    const [isImporting, setIsImporting] = useState(false);
 
     // New Issue
     const [newIssueTitle, setNewIssueTitle] = useState('');
@@ -58,6 +60,23 @@ function App() {
     ];
 
     // --- API CALLS ---
+    const importFromUrl = async () => {
+        if (!importUrl.trim()) return;
+        setIsImporting(true);
+        try {
+            // Use a cors proxy or direct fetch if allowed
+            const res = await fetch(importUrl);
+            const text = await res.text();
+            setFileContent(text);
+            // Auto-guess filename from URL
+            const guessedName = importUrl.split('/').pop().split('?')[0];
+            if (guessedName && guessedName.includes('.')) setFileName(guessedName);
+        } catch (e) {
+            alert("Failed to fetch script. Make sure the URL is a RAW link.");
+        }
+        setIsImporting(false);
+    };
+
     const fetchRepos = async () => {
         if (!user) return;
         try {
@@ -274,8 +293,8 @@ function App() {
 
     const copyLoadstring = (repoId, fname) => {
         const fullURL = `${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=vander2026`;
-        const url = `loadstring(game:HttpGet("${fullURL}"))()`;
-        navigator.clipboard.writeText(url);
+        const loader = `-- [[ VANDERHUB SECURE LOADER ]] --\n_G.VHub_Key = "vander2026"\nloadstring(game:HttpGet("${window.location.origin}${RAW}/${repoId}/${encodeURIComponent(fname)}?key=".._G.VHub_Key.."&hwid="..game:GetService("RbxAnalyticsService"):GetClientId()))()`;
+        navigator.clipboard.writeText(loader);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -564,6 +583,20 @@ function App() {
                             </div>
                         </aside>
                         <main className="main-content">
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(238, 173, 73, 0.03)', border: '1px solid rgba(238, 173, 73, 0.15)', cursor: 'default' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#eead49', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Network Nodes</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>{repos.length} REPOS</div>
+                                </div>
+                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(63, 185, 80, 0.03)', border: '1px solid rgba(63, 185, 80, 0.15)', cursor: 'default' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#3fb950', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>System Status</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>ENCRYPTED</div>
+                                </div>
+                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(47, 129, 247, 0.03)', border: '1px solid rgba(47, 129, 247, 0.15)', cursor: 'default' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2f81f7', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>V-Shield Level</div>
+                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>TITAN 6.0</div>
+                                </div>
+                            </div>
                             <h2 style={{ marginTop: 0, fontSize: '20px', marginBottom: '24px' }}>
                                 <Package size={22} color="var(--accent-color)" style={{ verticalAlign: 'middle', marginRight: '8px' }} />
                                 Activity Dashboard
@@ -1027,21 +1060,39 @@ function App() {
                     <div className="modal-overlay" onClick={() => setShowAddFile(false)}>
                         <motion.div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '750px' }} initial={{ scale: .92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: .92, opacity: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                <h2 style={{ margin: 0 }}>Add file to {selectedRepo?.name}</h2>
+                                <h2 style={{ margin: 0 }}>Create New Protocol</h2>
                                 <X size={24} style={{ cursor: 'pointer' }} onClick={() => setShowAddFile(false)} />
                             </div>
-                            <label className="form-label">File name (with extension) *</label>
-                            <input type="text" className="search-box form-input" placeholder="main.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
-                            <label className="form-label" style={{ marginTop: '16px' }}>File content</label>
+
+                            <div style={{ padding: '16px', background: 'rgba(47, 129, 247, 0.05)', border: '1px dashed rgba(47, 129, 247, 0.3)', borderRadius: '8px', marginBottom: '20px' }}>
+                                <label className="form-label" style={{ color: 'var(--accent-color)' }}>Quick Import (GitHub / Pastebin / Gist)</label>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                                    <input
+                                        type="text"
+                                        className="search-box form-input"
+                                        style={{ flex: 1, margin: 0 }}
+                                        placeholder="https://raw.githubusercontent.com/..."
+                                        value={importUrl}
+                                        onChange={e => setImportUrl(e.target.value)}
+                                    />
+                                    <button className="btn" onClick={importFromUrl} disabled={isImporting}>
+                                        {isImporting ? 'Fetching...' : 'V-Pull'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <label className="form-label">Protocol Name (e.g. main.lua) *</label>
+                            <input type="text" className="search-box form-input" placeholder="my_script.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
+                            <label className="form-label" style={{ marginTop: '16px' }}>Payload Code</label>
                             <textarea
                                 className="search-box form-input"
-                                style={{ height: '350px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', resize: 'vertical' }}
-                                placeholder="Paste your code here..."
+                                style={{ height: '300px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', resize: 'vertical' }}
+                                placeholder="Paste your script or code here..."
                                 value={fileContent}
                                 onChange={e => setFileContent(e.target.value)}
                             />
                             <button className="btn-primary btn" style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '20px' }} onClick={addFile} disabled={!fileName.trim()}>
-                                Commit new file
+                                Initialize Protocol
                             </button>
                         </motion.div>
                     </div>
