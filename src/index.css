@@ -158,12 +158,12 @@ pre {
     color: #484f58;
 }
 
-textarea.search-box {
+.textarea.search-box {
     width: 100%;
     resize: vertical;
 }
 
-textarea.search-box:focus {
+.textarea.search-box:focus {
     width: 100%;
 }
 

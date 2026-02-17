@@ -13,21 +13,11 @@ const RAW = window.location.origin.includes('localhost') ? "http://localhost:300
 
 function App() {
     // --- STATE ---
-    const [view, setView] = useState('login');
+    const [view, setView] = useState('dashboard');
     const [repos, setRepos] = useState([]);
     const [selectedRepo, setSelectedRepo] = useState(null);
     const [activeTab, setActiveTab] = useState('code');
     const [copied, setCopied] = useState(false);
-
-    // Authentication State
-    const [user, setUser] = useState(JSON.parse(localStorage.getItem('vander_hub_user')) || null);
-    const [isKeyVerified, setIsKeyVerified] = useState(localStorage.getItem('vander_key_verified') === 'true');
-    const [accessKey, setAccessKey] = useState('');
-    const [loginUsername, setLoginUsername] = useState('');
-    const [loginPassword, setLoginPassword] = useState('');
-    const [authError, setAuthError] = useState('');
-    const [trialClaiming, setTrialClaiming] = useState(false);
-    const [trialKey, setTrialKey] = useState(null);
 
     // Modals
     const [showNewRepo, setShowNewRepo] = useState(false);
@@ -39,6 +29,9 @@ function App() {
     const [editingFile, setEditingFile] = useState(false);
     const [editContent, setEditContent] = useState('');
     const [showSettings, setShowSettings] = useState(false);
+    const [authenticated, setAuthenticated] = useState(localStorage.getItem('vander_hub_auth') === 'true');
+    const [passkeyInput, setPasskeyInput] = useState('');
+    const [passkeyError, setPasskeyError] = useState(false);
 
     // New Repo
     const [newName, setNewName] = useState('');
@@ -48,158 +41,42 @@ function App() {
     // Add File
     const [fileName, setFileName] = useState('');
     const [fileContent, setFileContent] = useState('');
-    const [importUrl, setImportUrl] = useState('');
-    const [isImporting, setIsImporting] = useState(false);
 
     // New Issue
     const [newIssueTitle, setNewIssueTitle] = useState('');
 
+    // Profile
+    const profile = {
+        username: 'meqda',
+        bio: 'Building the future of scripting.',
+        joined: 'Feb 2026',
+        followers: 47,
+        following: 12
+    };
+
     const notifications = [
-        { id: 1, text: 'Vander Lua Code Defender is ready!', time: '1m ago' },
-        { id: 2, text: 'Welcome to the new Hub.', time: '5m ago' }
+        { id: 1, text: 'Your repo vander-shield received a new star!', time: '2h ago' },
+        { id: 2, text: 'Issue #1 was updated in vander-shield.', time: '4h ago' },
+        { id: 3, text: 'Welcome to VanderHub! Set up your profile.', time: '1d ago' }
     ];
 
     // --- API CALLS ---
-    const importFromUrl = async () => {
-        if (!importUrl.trim()) return;
-        setIsImporting(true);
-        try {
-            // Use a cors proxy or direct fetch if allowed
-            const res = await fetch(importUrl);
-            const text = await res.text();
-            setFileContent(text);
-            // Auto-guess filename from URL
-            const guessedName = importUrl.split('/').pop().split('?')[0];
-            if (guessedName && guessedName.includes('.')) setFileName(guessedName);
-        } catch (e) {
-            alert("Failed to fetch script. Make sure the URL is a RAW link.");
-        }
-        setIsImporting(false);
-    };
-
     const fetchRepos = async () => {
-        if (!user) return;
         try {
-            const r = await fetch(`${API}/repos?username=${user.username}`);
+            const r = await fetch(`${API}/repos`);
             const d = await r.json();
             setRepos(d);
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => {
-        if (user) {
-            fetchRepos();
-            if (view === 'login' || view === 'signup') setView('dashboard');
-        }
-    }, [user]);
-
-    const handleSignup = async () => {
-        if (!loginUsername || !loginPassword) return setAuthError('Missing fields');
-        try {
-            const r = await fetch(`${API}/signup`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: loginUsername, password: loginPassword })
-            });
-            const d = await r.json();
-            if (d.success) {
-                setUser(d.user);
-                localStorage.setItem('vander_hub_user', JSON.stringify(d.user));
-                setAuthError('');
-            } else { setAuthError(d.error); }
-        } catch (e) { setAuthError('Connection failed'); }
-    };
-
-    const handleLogin = async () => {
-        if (!loginUsername || !loginPassword) return setAuthError('Missing fields');
-        try {
-            const r = await fetch(`${API}/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: loginUsername, password: loginPassword })
-            });
-            const d = await r.json();
-            if (d.success) {
-                setUser(d.user);
-                localStorage.setItem('vander_hub_user', JSON.stringify(d.user));
-                setAuthError('');
-            } else { setAuthError(d.error); }
-        } catch (e) { setAuthError('Connection failed'); }
-    };
-
-    const handleLogout = () => {
-        setUser(null);
-        localStorage.removeItem('vander_hub_user');
-        setView('login');
-    };
-
-    const handleVerifyKey = async (overrideKey = null) => {
-        const keyToVerify = overrideKey || accessKey.trim();
-        if (!keyToVerify) return setAuthError('Please enter a key');
-        setAuthError('');
-        try {
-            const r = await fetch(`${API}/verify-key`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: keyToVerify, hwid: navigator.userAgent })
-            });
-            const d = await r.json();
-            if (d.success) {
-                setIsKeyVerified(true);
-                localStorage.setItem('vander_key_verified', 'true');
-                localStorage.setItem('vander_access_key', keyToVerify);
-                setAuthError('');
-            } else {
-                setAuthError(d.error);
-                setIsKeyVerified(false);
-                localStorage.removeItem('vander_key_verified');
-            }
-        } catch (e) { setAuthError('Connection failed'); }
-    };
-
-    useEffect(() => {
-        const savedKey = localStorage.getItem('vander_access_key');
-        if (savedKey) {
-            handleVerifyKey(savedKey);
-        }
-    }, []);
-
-    const handleClaimTrial = async () => {
-        setTrialClaiming(true);
-        setAuthError('');
-        try {
-            const r = await fetch(`${API}/claim-trial`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hwid: navigator.userAgent })
-            });
-            const d = await r.json();
-            if (d.success && d.key) {
-                setAccessKey(d.key);
-                setTrialKey(d.key); // Important for the success message!
-                try { await navigator.clipboard.writeText(d.key); } catch (e) { }
-
-                // Auto-verify immediately — no extra clicks
-                setIsKeyVerified(true);
-                localStorage.setItem('vander_key_verified', 'true');
-                localStorage.setItem('vander_access_key', d.key); // Store it for re-loads
-                setAuthError('');
-            } else { setAuthError(d.error || 'Failed to claim trial'); }
-        } catch (e) { setAuthError('Connection failed'); }
-        setTrialClaiming(false);
-    };
+    useEffect(() => { fetchRepos(); }, []);
 
     const createRepo = async () => {
-        if (!newName.trim() || !user) return;
+        if (!newName.trim()) return;
         await fetch(`${API}/repos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: newName.trim().replace(/\s+/g, '-').toLowerCase(),
-                desc: newDesc,
-                status: newPrivate ? 'Private' : 'Public',
-                owner: user.username
-            })
+            body: JSON.stringify({ name: newName.trim().replace(/\s+/g, '-').toLowerCase(), desc: newDesc, status: newPrivate ? 'Private' : 'Public' })
         });
         setShowNewRepo(false);
         setNewName(''); setNewDesc(''); setNewPrivate(true);
@@ -207,11 +84,11 @@ function App() {
     };
 
     const addFile = async () => {
-        if (!fileName.trim() || !selectedRepo || !user) return;
+        if (!fileName.trim() || !selectedRepo) return;
         await fetch(`${API}/repos/${selectedRepo.id}/files`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: fileName.trim(), content: fileContent, username: user.username })
+            body: JSON.stringify({ name: fileName.trim(), content: fileContent })
         });
         setShowAddFile(false);
         setFileName(''); setFileContent('');
@@ -219,11 +96,11 @@ function App() {
     };
 
     const saveEdit = async () => {
-        if (!viewingFile || !selectedRepo || !user) return;
+        if (!viewingFile || !selectedRepo) return;
         await fetch(`${API}/repos/${selectedRepo.id}/files/${viewingFile.name}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: editContent, commitMsg: `Update ${viewingFile.name}`, username: user.username })
+            body: JSON.stringify({ content: editContent, commitMsg: `Update ${viewingFile.name}` })
         });
         setEditingFile(false);
         setViewingFile({ ...viewingFile, content: editContent });
@@ -231,12 +108,8 @@ function App() {
     };
 
     const deleteFile = async (fname) => {
-        if (!selectedRepo || !user) return;
-        await fetch(`${API}/repos/${selectedRepo.id}/files/${fname}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user.username })
-        });
+        if (!selectedRepo) return;
+        await fetch(`${API}/repos/${selectedRepo.id}/files/${fname}`, { method: 'DELETE' });
         setViewingFile(null);
         refreshRepo();
     };
@@ -256,19 +129,18 @@ function App() {
     };
 
     const createIssue = async () => {
-        if (!newIssueTitle.trim() || !selectedRepo || !user) return;
+        if (!newIssueTitle.trim() || !selectedRepo) return;
         await fetch(`${API}/repos/${selectedRepo.id}/issues`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newIssueTitle, author: user.username })
+            body: JSON.stringify({ title: newIssueTitle })
         });
         setNewIssueTitle('');
         refreshRepo();
     };
 
     const refreshRepo = async () => {
-        if (!user) return;
-        const r = await fetch(`${API}/repos?username=${user.username}`);
+        const r = await fetch(`${API}/repos`);
         const d = await r.json();
         setRepos(d);
         if (selectedRepo) {
@@ -283,6 +155,18 @@ function App() {
         setActiveTab('code');
         setViewingFile(null);
         setEditingFile(false);
+    };
+
+    const handleAuth = () => {
+        if (passkeyInput === 'Eman165*') {
+            setAuthenticated(true);
+            localStorage.setItem('vander_hub_auth', 'true');
+            setPasskeyError(false);
+        } else {
+            setPasskeyError(true);
+            setPasskeyInput('');
+            setTimeout(() => setPasskeyError(false), 2000);
+        }
     };
 
     const copyRaw = (repoId, fname) => {
@@ -308,148 +192,58 @@ function App() {
     }, []);
 
     // ==================== RENDER ====================
-    if (!isKeyVerified) {
-        return (
-            <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)', filter: 'blur(100px)', opacity: 0.3 }}></div>
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="repo-card"
-                    style={{ width: '420px', padding: '48px', textAlign: 'center', position: 'relative', zIndex: 10, cursor: 'default' }}
-                >
-                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(0, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px' }}>
-                        <Lock size={36} color="var(--accent-color)" />
-                    </div>
-                    <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.5px' }}>Access Protocol</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '36px' }}>Enter your security key to unlock the ecosystem.</p>
-
-                    <div className="input-group" style={{ textAlign: 'left', marginBottom: '24px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>SECURITY KEY</label>
-                        <input
-                            type="text"
-                            className="search-box"
-                            style={{ width: '100%', padding: '12px' }}
-                            placeholder="VANDER-XXXX-XXXX"
-                            value={accessKey}
-                            onChange={(e) => setAccessKey(e.target.value)}
-                        />
-                    </div>
-
-                    {authError && <div style={{ color: '#f85149', fontSize: '12px', marginBottom: '20px' }}>{authError}</div>}
-
-                    {trialKey && <div style={{ color: '#10b981', fontSize: '12px', marginBottom: '16px', padding: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px' }}>
-                        ✅ Trial key generated & copied to clipboard!<br />
-                        <span style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 700, letterSpacing: '1px' }}>{trialKey}</span><br />
-                        <span style={{ opacity: 0.7 }}>Click "Verify Access" below to activate.</span>
-                    </div>}
-
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'var(--accent-color)', color: '#0d1117', marginBottom: '12px' }} onClick={handleVerifyKey}>
-                        Verify Access
-                    </button>
-
-                    <button className="btn" style={{ width: '100%', padding: '12px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-primary)', marginBottom: '12px', opacity: trialClaiming ? 0.6 : 1 }}
-                        onClick={handleClaimTrial} disabled={trialClaiming}>
-                        {trialClaiming ? '⏳ Claiming...' : '🎟️ Claim 30-Day Free Trial'}
-                    </button>
-                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '20px', opacity: 0.7 }}>One-time trial per device. No card required.</p>
-
-                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Already used your trial? <a href="https://vander-key-store.onrender.com" target="_blank" style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>Purchase a key here</a>
-                    </p>
-                </motion.div>
-            </div>
-        );
-    }
-
-    if (!user) {
-        const isLogin = view === 'login';
+    if (!authenticated) {
         return (
             <div style={{ height: '100vh', width: '100vw', background: 'var(--bg-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)', filter: 'blur(100px)', opacity: 0.3 }}></div>
                 <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 70%)', filter: 'blur(100px)', opacity: 0.3 }}></div>
 
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="repo-card"
-                    style={{ width: '420px', padding: '48px', textAlign: 'center', position: 'relative', zIndex: 10, cursor: 'default' }}
+                    style={{ width: '400px', padding: '40px', textAlign: 'center', position: 'relative', zIndex: 10, cursor: 'default' }}
                 >
-                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'rgba(0, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px' }}>
-                        <ShieldCheck size={36} color="var(--accent-color)" />
+                    <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(47, 129, 247, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                        <Lock size={32} color="var(--accent-color)" />
                     </div>
-                    <h1 style={{ fontSize: '28px', fontWeight: 800, margin: '0 0 10px', letterSpacing: '-0.5px' }}>
-                        {isLogin ? 'Welcome Back' : 'Create Account'}
-                    </h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '36px' }}>
-                        {isLogin ? 'Login to access your protected scripts' : 'Sign up for Vander Lua Code Defender'}
-                    </p>
+                    <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px' }}>Security Check</h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '32px' }}>Enter your access key to enter VanderHub</p>
 
-                    <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-                        <label className="form-label" style={{ fontSize: '12px', marginBottom: '8px' }}>Username</label>
-                        <div style={{ position: 'relative' }}>
-                            <User size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                            <input
-                                type="text"
-                                className="search-box form-input"
-                                style={{ width: '100%', paddingLeft: '44px' }}
-                                placeholder="Enter username"
-                                value={loginUsername}
-                                onChange={e => setLoginUsername(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div style={{ textAlign: 'left', marginBottom: '32px' }}>
-                        <label className="form-label" style={{ fontSize: '12px', marginBottom: '8px' }}>Secret Key</label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-                            <input
-                                type="password"
-                                className="search-box form-input"
-                                style={{ width: '100%', paddingLeft: '44px' }}
-                                placeholder="••••••••••••"
-                                value={loginPassword}
-                                onChange={e => setLoginPassword(e.target.value)}
-                            />
-                        </div>
-                    </div>
+                    <input
+                        type="password"
+                        className="search-box form-input"
+                        style={{ width: '100%', marginBottom: '20px', textAlign: 'center', border: passkeyError ? '1px solid var(--danger-color)' : '1px solid var(--border-color)' }}
+                        placeholder="••••••••••••"
+                        value={passkeyInput}
+                        onChange={e => setPasskeyInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAuth()}
+                    />
 
                     <AnimatePresence>
-                        {authError && (
+                        {passkeyError && (
                             <motion.p
-                                initial={{ opacity: 0, y: -5 }}
+                                initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0 }}
-                                style={{ color: 'var(--danger-color)', fontSize: '13px', marginTop: '-16px', marginBottom: '20px', fontWeight: 600 }}
+                                style={{ color: 'var(--danger-color)', fontSize: '12px', marginTop: '-12px', marginBottom: '16px', fontWeight: 600 }}
                             >
-                                <AlertCircle size={14} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                                {authError}
+                                Invalid passkey. Access Denied.
                             </motion.p>
                         )}
                     </AnimatePresence>
 
                     <button
                         className="btn-primary btn"
-                        style={{ width: '100%', padding: '14px', fontSize: '15px', justifyContent: 'center', marginBottom: '24px' }}
-                        onClick={isLogin ? handleLogin : handleSignup}
+                        style={{ width: '100%', padding: '12px', fontSize: '14px', justifyContent: 'center' }}
+                        onClick={handleAuth}
                     >
-                        {isLogin ? 'Sign In' : 'Create Account'}
+                        Unlock Terminal
                     </button>
 
-                    <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                        {isLogin ? "Don't have an account? " : "Already have an account? "}
-                        <span
-                            style={{ color: 'var(--accent-color)', cursor: 'pointer', fontWeight: 600 }}
-                            onClick={() => { setView(isLogin ? 'signup' : 'login'); setAuthError(''); }}
-                        >
-                            {isLogin ? 'Sign Up' : 'Log In'}
-                        </span>
-                    </p>
-
-                    <div style={{ marginTop: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: 0.4 }}>
-                        <Rocket size={14} />
-                        <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px' }}>VANDER SECURITY PROTOCOL v3.0</span>
+                    <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: 0.5 }}>
+                        <ShieldCheck size={14} />
+                        <span style={{ fontSize: '11px', fontWeight: 600 }}>ENCRYPTED SESSION</span>
                     </div>
                 </motion.div>
             </div>
@@ -463,10 +257,10 @@ function App() {
             <header className="header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <Github size={32} color="#e6edf3" style={{ cursor: 'pointer' }} onClick={() => { setView('dashboard'); setShowSettings(false); }} />
-                    <span style={{ fontWeight: 800, fontSize: '18px', cursor: 'pointer', letterSpacing: '-0.5px' }} onClick={() => { setView('dashboard'); setShowSettings(false); }}>Vander Lua Code Defender</span>
+                    <span style={{ fontWeight: 800, fontSize: '18px', cursor: 'pointer', letterSpacing: '-0.5px' }} onClick={() => { setView('dashboard'); setShowSettings(false); }}>VanderHub</span>
                     <div style={{ position: 'relative', marginLeft: '12px' }}>
                         <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#7d8590' }} />
-                        <input type="text" className="search-box" placeholder="Search Protected Scripts..." style={{ paddingLeft: '36px' }} />
+                        <input type="text" className="search-box" placeholder="VanderHub Search..." style={{ paddingLeft: '36px' }} />
                     </div>
                 </div>
 
@@ -492,11 +286,6 @@ function App() {
                     {/* Issues */}
                     <div className="header-icon" onClick={() => { if (selectedRepo) { setView('repo'); setActiveTab('issues'); } }}>
                         <CircleDot size={18} />
-                    </div>
-
-                    {/* Shield Lab */}
-                    <div className="header-icon" onClick={() => { setView('shield'); setShowSettings(false); }} title="Shield Lab">
-                        <ShieldCheck size={18} color={view === 'shield' ? 'var(--accent-color)' : 'white'} />
                     </div>
 
                     {/* Pull Requests */}
@@ -532,8 +321,8 @@ function App() {
                         {showProfile && (
                             <div className="dropdown" style={{ right: 0, width: '240px' }}>
                                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)' }}>
-                                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{user.username}</div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Protected Member</div>
+                                    <div style={{ fontWeight: 700, fontSize: '15px' }}>{profile.username}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{profile.bio}</div>
                                 </div>
                                 <div className="dropdown-item" onClick={() => { setView('profile'); setShowProfile(false); setShowSettings(false); }}>
                                     <User size={16} /> Your profile
@@ -550,7 +339,7 @@ function App() {
                                     </div>
                                 </div>
                                 <div style={{ borderTop: '1px solid var(--border-color)' }}>
-                                    <div className="dropdown-item" style={{ color: '#f85149' }} onClick={handleLogout}>
+                                    <div className="dropdown-item" style={{ color: '#f85149' }}>
                                         <LogOut size={16} /> Sign out
                                     </div>
                                 </div>
@@ -584,20 +373,6 @@ function App() {
                             </div>
                         </aside>
                         <main className="main-content">
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(238, 173, 73, 0.03)', border: '1px solid rgba(238, 173, 73, 0.15)', cursor: 'default' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#eead49', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Network Nodes</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>{repos.length} REPOS</div>
-                                </div>
-                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(63, 185, 80, 0.03)', border: '1px solid rgba(63, 185, 80, 0.15)', cursor: 'default' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#3fb950', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>System Status</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>ENCRYPTED</div>
-                                </div>
-                                <div className="repo-card" style={{ padding: '16px 20px', background: 'rgba(47, 129, 247, 0.03)', border: '1px solid rgba(47, 129, 247, 0.15)', cursor: 'default' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#2f81f7', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>V-Shield Level</div>
-                                    <div style={{ fontSize: '24px', fontWeight: 800 }}>TITAN 6.0</div>
-                                </div>
-                            </div>
                             <h2 style={{ marginTop: 0, fontSize: '20px', marginBottom: '24px' }}>
                                 <Package size={22} color="var(--accent-color)" style={{ verticalAlign: 'middle', marginRight: '8px' }} />
                                 Activity Dashboard
@@ -628,15 +403,15 @@ function App() {
                         <div style={{ display: 'flex', gap: '48px', alignItems: 'flex-start' }}>
                             <div style={{ textAlign: 'center' }}>
                                 <div style={{ width: 260, height: 260, borderRadius: '50%', background: 'linear-gradient(135deg, #00ffff, #2f81f7, #a855f7)', margin: '0 auto 20px', border: '4px solid var(--border-color)' }}></div>
-                                <h2 style={{ margin: '0 0 4px 0', fontSize: '26px' }}>{user.username}</h2>
-                                <p style={{ color: 'var(--text-secondary)', margin: '0 0 16px' }}>Protected Scripts Developer</p>
+                                <h2 style={{ margin: '0 0 4px 0', fontSize: '26px' }}>{profile.username}</h2>
+                                <p style={{ color: 'var(--text-secondary)', margin: '0 0 16px' }}>{profile.bio}</p>
                                 <button className="btn" style={{ width: '100%', padding: '8px' }}>Edit profile</button>
                                 <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '16px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                                    <span><b style={{ color: 'var(--text-primary)' }}>0</b> followers</span>
-                                    <span><b style={{ color: 'var(--text-primary)' }}>0</b> following</span>
+                                    <span><b style={{ color: 'var(--text-primary)' }}>{profile.followers}</b> followers</span>
+                                    <span><b style={{ color: 'var(--text-primary)' }}>{profile.following}</b> following</span>
                                 </div>
                                 <div style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                    <Rocket size={14} style={{ verticalAlign: 'middle', marginRight: '6px' }} /> Member since Feb 2026
+                                    <Rocket size={14} style={{ verticalAlign: 'middle', marginRight: '6px' }} /> Joined {profile.joined}
                                 </div>
                             </div>
                             <div style={{ flex: 1 }}>
@@ -680,47 +455,6 @@ function App() {
                     </motion.div>
                 )}
 
-                {/* ===== SHIELD LAB (Obfuscator / Deobfuscator) ===== */}
-                {view === 'shield' && (
-                    <motion.div key="shield" style={{ flex: 1, padding: '32px max(32px, 5%)' }} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
-                            <ShieldCheck size={28} color="var(--accent-color)" />
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '24px' }}>Shield Lab</h2>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>Advanced Luau Security Suite</p>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '32px' }}>
-                            {/* Obfuscator Column */}
-                            <div className="repo-card" style={{ padding: '24px', cursor: 'default' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                                    <Lock size={18} color="var(--accent-color)" />
-                                    <h3 style={{ margin: 0 }}>Neural Obfuscator</h3>
-                                </div>
-                                <textarea
-                                    className="search-box"
-                                    style={{ width: '100%', height: '400px', fontFamily: 'monospace', fontSize: '12px', padding: '20px', resize: 'none', background: '#0d1117' }}
-                                    placeholder="Paste your Luau code here to protect it..."
-                                    id="obf-input"
-                                ></textarea>
-                                <button className="btn-primary btn" style={{ width: '100%', marginTop: '20px', padding: '14px', fontSize: '15px' }} onClick={async () => {
-                                    const code = document.getElementById('obf-input').value;
-                                    const res = await fetch(`${API}/obfuscate`, {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ code })
-                                    });
-                                    const data = await res.json();
-                                    document.getElementById('obf-input').value = data.result;
-                                }}>
-                                    <ShieldCheck size={18} /> Encrypt & Obfuscate
-                                </button>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-
                 {/* ===== REPO VIEW ===== */}
                 {view === 'repo' && selectedRepo && (
                     <motion.div key="repo" style={{ flex: 1, padding: '32px max(32px, 5%)' }} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
@@ -748,7 +482,7 @@ function App() {
                         <div style={{ display: 'flex', gap: '24px', borderBottom: '1px solid var(--border-color)', marginBottom: '24px', overflowX: 'auto' }}>
                             {[
                                 { id: 'code', icon: <Code2 size={16} />, label: 'Code' },
-                                { id: 'issues', icon: <CircleDot size={16} />, label: `Issues (${selectedRepo.issues?.length || 0})` },
+                                { id: 'issues', icon: <CircleDot size={16} />, label: `Issues (${selectedRepo.issues.length})` },
                                 { id: 'pulls', icon: <GitPullRequest size={16} />, label: 'Pull Requests' },
                                 { id: 'actions', icon: <PlayCircle size={16} />, label: 'Actions' },
                                 { id: 'security', icon: <ShieldCheck size={16} />, label: 'Security' },
@@ -775,15 +509,15 @@ function App() {
                                     <div style={{ background: 'var(--bg-secondary)', padding: '14px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px' }}>
                                         <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(45deg, #2f81f7, #00ffff)' }}></div>
                                         <b>{selectedRepo.owner}</b>
-                                        <span style={{ color: 'var(--text-secondary)' }}>{selectedRepo.commits?.[0]?.msg || 'Initial upload'}</span>
-                                        <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits?.[0]?.hash || 'HEAD'} · {selectedRepo.commits?.[0]?.time || 'Just now'}</span>
+                                        <span style={{ color: 'var(--text-secondary)' }}>{selectedRepo.commits[0]?.msg}</span>
+                                        <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits[0]?.hash} · {selectedRepo.commits[0]?.time}</span>
                                     </div>
-                                    {(selectedRepo.files || []).map(f => (
+                                    {selectedRepo.files.map(f => (
                                         <div key={f.name} className="nav-item" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '14px' }}
                                             onClick={() => { if (f.type === 'file') { setViewingFile(f); setEditContent(f.content); setEditingFile(false); } }}>
                                             {f.type === 'folder' ? <Layers size={18} color="#7d8590" /> : <File size={18} color="#7d8590" />}
                                             <span style={{ flex: 1 }}>{f.name}</span>
-                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits?.[0]?.msg || 'Uploaded'}</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>{selectedRepo.commits[0]?.msg}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -874,29 +608,25 @@ function App() {
                                     />
                                     <button className="btn-primary btn" onClick={createIssue} disabled={!newIssueTitle.trim()}>New Issue</button>
                                 </div>
-                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '6px' }}>
                                     <div style={{ background: 'var(--bg-secondary)', padding: '12px 16px', borderBottom: '1px solid var(--border-color)', fontWeight: 600 }}>
-                                        <CircleDot size={16} color="#3fb950" style={{ verticalAlign: 'middle', marginRight: '8px' }} /> {(selectedRepo.issues || []).filter(i => i.status === 'Open').length} Open
+                                        <CircleDot size={16} color="#3fb950" style={{ verticalAlign: 'middle', marginRight: '8px' }} /> {selectedRepo.issues.filter(i => i.status === 'Open').length} Open
                                     </div>
-                                    {(selectedRepo.issues || []).length === 0 && (
+                                    {selectedRepo.issues.length === 0 && (
                                         <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                             <AlertCircle size={48} style={{ opacity: .15, marginBottom: '12px' }} />
                                             <p>No issues yet. Type a title above and click "New Issue".</p>
                                         </div>
                                     )}
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        {(selectedRepo.issues || []).map((issue, i) => (
-                                            <div key={i} className="nav-item" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '12px', alignItems: 'flex-start' }}>
-                                                <CircleDot size={18} color="#3fb950" style={{ marginTop: '2px' }} />
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 600, fontSize: '15px' }}>{issue.title}</div>
-                                                    <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
-                                                        #{i + 1} opened recently by {issue.author}
-                                                    </div>
-                                                </div>
+                                    {selectedRepo.issues.map(issue => (
+                                        <div key={issue.id} className="nav-item" style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-color)', borderRadius: 0, gap: '12px' }}>
+                                            <CircleDot size={16} color="#3fb950" />
+                                            <div>
+                                                <div style={{ fontWeight: 600 }}>{issue.title}</div>
+                                                <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>#{issue.id} opened {issue.time} by {issue.author}</div>
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -906,7 +636,7 @@ function App() {
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                     <div style={{ display: 'flex', gap: '12px' }}>
-                                        <button className="btn" style={{ background: 'rgba(47,129,247,0.1)' }}><GitPullRequest size={14} color="#3fb950" /> 0 Open</button>
+                                        <button className="btn" style={{ background: activeTab === 'pulls' ? 'rgba(47,129,247,0.1)' : '' }}><GitPullRequest size={14} color="#3fb950" /> 0 Open</button>
                                         <button className="btn"><Check size={14} /> 0 Closed</button>
                                     </div>
                                     <button className="btn-primary btn">New pull request</button>
@@ -989,6 +719,8 @@ function App() {
                         {activeTab === 'settings' && (
                             <div>
                                 <h3 style={{ margin: '0 0 24px' }}><Settings size={20} style={{ verticalAlign: 'middle', marginRight: '8px' }} />General</h3>
+
+                                {/* Repo Name */}
                                 <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
                                     <label className="form-label">Repository name</label>
                                     <div style={{ display: 'flex', gap: '12px' }}>
@@ -996,6 +728,8 @@ function App() {
                                         <button className="btn">Rename</button>
                                     </div>
                                 </div>
+
+                                {/* Description */}
                                 <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
                                     <label className="form-label">Description</label>
                                     <div style={{ display: 'flex', gap: '12px' }}>
@@ -1003,17 +737,45 @@ function App() {
                                         <button className="btn">Save</button>
                                     </div>
                                 </div>
+
+                                {/* Visibility */}
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
+                                    <label className="form-label">Visibility</label>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+                                        This repository is currently <b style={{ color: selectedRepo.status === 'Private' ? '#f0883e' : '#3fb950' }}>{selectedRepo.status}</b>.
+                                    </p>
+                                    <button className="btn" style={{ borderColor: '#f0883e', color: '#f0883e' }}>
+                                        {selectedRepo.status === 'Private' ? <><Eye size={14} /> Change to Public</> : <><Lock size={14} /> Change to Private</>}
+                                    </button>
+                                </div>
+
+                                {/* Default Branch */}
+                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '20px', marginBottom: '20px', background: 'var(--bg-secondary)' }}>
+                                    <label className="form-label">Default branch</label>
+                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                        <button className="btn"><GitBranch size={14} /> main</button>
+                                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>The default branch is considered the base branch of your repository.</span>
+                                    </div>
+                                </div>
+
+                                {/* Danger Zone */}
                                 <div style={{ border: '1px solid #da3633', borderRadius: '8px', overflow: 'hidden', marginTop: '32px' }}>
                                     <div style={{ background: 'rgba(218,54,51,0.1)', padding: '14px 20px', borderBottom: '1px solid #da3633', fontWeight: 700, color: '#f85149' }}>
                                         Danger Zone
                                     </div>
-                                    <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600 }}>Delete this repository</div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Once deleted, there is no going back.</div>
+                                    {[
+                                        { label: 'Transfer ownership', desc: 'Transfer this repository to another user or organization.', btn: 'Transfer' },
+                                        { label: 'Archive this repository', desc: 'Mark this repository as archived and read-only.', btn: 'Archive' },
+                                        { label: 'Delete this repository', desc: 'Once deleted, there is no going back. Please be certain.', btn: 'Delete', action: () => deleteRepo(selectedRepo.id) }
+                                    ].map((item, i) => (
+                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: i < 2 ? '1px solid #da3633' : 'none', gap: '16px' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 600, fontSize: '14px' }}>{item.label}</div>
+                                                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{item.desc}</div>
+                                            </div>
+                                            <button className="btn" style={{ borderColor: '#da3633', color: '#f85149', flexShrink: 0 }} onClick={item.action}>{item.btn}</button>
                                         </div>
-                                        <button className="btn" style={{ borderColor: '#da3633', color: '#f85149' }} onClick={() => deleteRepo(selectedRepo.id)}>Delete repository</button>
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -1025,7 +787,7 @@ function App() {
                 )}
             </AnimatePresence>
 
-            {/* ========== MODALS & TOOLS ========== */}
+            {/* ========== NEW REPO MODAL ========== */}
             <AnimatePresence>
                 {showNewRepo && (
                     <div className="modal-overlay" onClick={() => setShowNewRepo(false)}>
@@ -1045,7 +807,7 @@ function App() {
                                 </div>
                                 <div className="radio-option" onClick={() => setNewPrivate(true)}>
                                     <div className={`radio-dot ${newPrivate ? 'active' : ''}`}></div>
-                                    <div><div style={{ fontWeight: 600 }}>Private (Default)</div><div className="radio-desc">Controlled access enabled.</div></div>
+                                    <div><div style={{ fontWeight: 600 }}>Private (Default)</div><div className="radio-desc">You choose who can see this repo.</div></div>
                                 </div>
                             </div>
                             <button className="btn-primary btn" style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '24px' }} onClick={createRepo} disabled={!newName.trim()}>
@@ -1056,20 +818,18 @@ function App() {
                 )}
             </AnimatePresence>
 
+            {/* ========== ADD FILE MODAL ========== */}
             <AnimatePresence>
                 {showAddFile && (
                     <div className="modal-overlay" onClick={() => setShowAddFile(false)}>
-                        <motion.div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '750px' }} initial={{ scale: .92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: .92, opacity: 0 }}>
+                        <motion.div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }} initial={{ scale: .92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: .92, opacity: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                <h2 style={{ margin: 0 }}>Create New Protocol</h2>
+                                <h2 style={{ margin: 0 }}>Add file to {selectedRepo?.name}</h2>
                                 <X size={24} style={{ cursor: 'pointer' }} onClick={() => setShowAddFile(false)} />
                             </div>
-
-
-
-                            <label className="form-label">Protocol Name (e.g. main.lua) *</label>
+                            <label className="form-label">File name (with extension) *</label>
                             <input type="text" className="search-box form-input" placeholder="my_script.lua" value={fileName} onChange={e => setFileName(e.target.value)} />
-                            <label className="form-label" style={{ marginTop: '16px' }}>Payload Code</label>
+                            <label className="form-label" style={{ marginTop: '16px' }}>File content</label>
                             <textarea
                                 className="search-box form-input"
                                 style={{ height: '300px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', resize: 'vertical' }}
@@ -1078,28 +838,34 @@ function App() {
                                 onChange={e => setFileContent(e.target.value)}
                             />
                             <button className="btn-primary btn" style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '20px' }} onClick={addFile} disabled={!fileName.trim()}>
-                                Initialize Protocol
+                                Commit new file
                             </button>
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
 
+            {/* ========== TOAST ========== */}
             <AnimatePresence>
                 {copied && (
-                    <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-                        style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', background: '#238636', color: '#fff', padding: '12px 24px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 9999 }}>
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 50 }}
+                        style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', background: '#238636', color: '#fff', padding: '12px 24px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 9999 }}
+                    >
                         <Check size={18} /> Copied to clipboard!
                     </motion.div>
                 )}
             </AnimatePresence>
 
+            {/* ========== FOOTER ========== */}
             <footer style={{ marginTop: 'auto', padding: '48px', borderTop: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '12px' }}>
                 <Github size={24} style={{ marginBottom: '20px', opacity: 0.3 }} />
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '16px' }}>
-                    <span>Terms</span><span>Privacy</span><span>Docs</span><span>Contact VanderHub</span>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '16px' }}>
+                    <span style={{ cursor: 'pointer' }}>Terms</span><span style={{ cursor: 'pointer' }}>Privacy</span><span style={{ cursor: 'pointer' }}>Docs</span><span style={{ cursor: 'pointer' }}>Contact</span>
                 </div>
-                © 2026 VanderHub, Inc. Absolute Security Guaranteed.
+                © 2026 VanderHub, Inc.
             </footer>
         </div>
     );
